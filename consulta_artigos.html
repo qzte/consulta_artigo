@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.0.1</title>
+<title>Consulta de Artigos — v1.1.0</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -28,17 +28,17 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
- 
+
   /* HEADER */
   header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; gap: 16px; height: 56px; position: sticky; top: 0; z-index: 100; }
   header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
   header .sep { width: 1px; height: 20px; background: var(--border); }
   header .subtitle { font-size: 13px; color: var(--text2); }
   .version { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 9px; color: var(--text2); margin-left: auto; }
- 
+
   /* LAYOUT */
   .container { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
- 
+
   /* UPLOAD SECTION */
   .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
   .upload-card { background: var(--surface); border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
@@ -50,7 +50,7 @@
   .upload-card .uc-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
   .upload-card .uc-count { font-size: 12px; color: var(--green-txt); font-weight: 500; margin-top: 6px; }
   .upload-card input[type=file] { display: none; }
- 
+
   /* SEARCH */
   .search-wrap { position: relative; margin-bottom: 1.5rem; }
   .search-wrap svg.icon-search { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--text3); pointer-events: none; }
@@ -59,24 +59,24 @@
   #search-input:disabled { background: var(--surface2); color: var(--text3); cursor: not-allowed; }
   #btn-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; display: none; border-radius: 99px; }
   #btn-clear:hover { color: var(--text); background: var(--surface2); }
- 
+
   /* READY MESSAGE */
   .ready-msg { display: none; font-size: 13px; color: var(--green-txt); background: var(--green-bg); border: 1px solid #a8d8b8; border-radius: var(--radius-sm); padding: 8px 14px; margin-bottom: 1rem; display: none; align-items: center; gap: 6px; }
- 
+
   /* RESULTS */
   #results { display: none; }
   .results-header { font-size: 13px; color: var(--text2); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
- 
+
   /* ARTIGO CARD */
   .artigo-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
   .artigo-card-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
   .cod-pill { background: var(--blue-bg); color: var(--blue-txt); font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; white-space: nowrap; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .artigo-nome { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.4; }
   .artigo-card-body { padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
- 
+
   /* SECTION LABEL */
   .sec-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
- 
+
   /* ARM GRID */
   .arm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
   .arm-cell { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; }
@@ -84,14 +84,23 @@
   .arm-cell-pos { font-size: 14px; font-weight: 600; color: var(--text); font-family: 'Cascadia Code', 'Courier New', monospace; }
   .arm-cell-um { font-size: 11px; color: var(--text3); margin-top: 2px; }
   .arm-cell-obs { font-size: 11px; color: var(--amber-txt); background: var(--amber-bg); border-radius: 4px; padding: 2px 6px; margin-top: 4px; display: inline-block; }
- 
+
   /* DIVIDER */
   .divider { border: none; border-top: 1px solid var(--border); }
- 
+
+  /* IMPORTANT INFO */
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .info-card { background: var(--blue-bg); border: 1px solid rgba(26,79,160,0.14); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .info-card.green { background: var(--green-bg); border-color: rgba(26,102,50,0.16); }
+  .info-card.amber { background: var(--amber-bg); border-color: rgba(138,90,0,0.16); }
+  .info-card-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+  .info-card-value { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  .info-card-note { font-size: 11px; color: var(--text2); margin-top: 3px; }
+
   /* SUPER TAGS */
   .super-tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .super-tag { background: var(--amber-bg); color: var(--amber-txt); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 99px; }
- 
+
   /* CAIXAS TABLE */
   .cx-wrap { overflow-x: auto; }
   table.cx { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -101,13 +110,13 @@
   table.cx td.mono { font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; }
   table.cx td.muted { color: var(--text2); }
   .badge-total { background: var(--blue-bg); color: var(--blue-txt); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; font-family: 'Cascadia Code', 'Courier New', monospace; }
- 
+
   /* EMPTY */
   .no-data { color: var(--text3); font-size: 13px; font-style: italic; }
   .empty-state { text-align: center; padding: 4rem 1rem; color: var(--text3); }
   .empty-state svg { width: 44px; height: 44px; margin: 0 auto 12px; display: block; opacity: 0.4; }
   .empty-state p { font-size: 14px; }
- 
+
   @media (max-width: 600px) {
     .upload-grid { grid-template-columns: 1fr; }
     header { padding: 0 1rem; }
@@ -116,17 +125,17 @@
 </style>
 </head>
 <body>
- 
+
 <header>
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#1a4fa0"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.0.1</span>
+  <span class="version">v1.1.0</span>
 </header>
- 
+
 <div class="container">
- 
+
   <!-- UPLOAD -->
   <div class="upload-grid">
     <div class="upload-card" id="z-super" onclick="document.getElementById('f-super').click()">
@@ -144,13 +153,13 @@
       <input type="file" id="f-arm" accept=".xlsx" onchange="loadFile(this,'arm')">
     </div>
   </div>
- 
+
   <!-- READY -->
   <div class="ready-msg" id="ready-msg">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
     Ambos os ficheiros carregados — pode pesquisar abaixo.
   </div>
- 
+
   <!-- SEARCH -->
   <div class="search-wrap">
     <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
@@ -159,21 +168,21 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
- 
+
   <!-- RESULTS -->
   <div id="results">
     <div class="results-header" id="results-header"></div>
     <div id="cards-container"></div>
   </div>
- 
+
 </div>
- 
+
 <script>
 // ── State ──────────────────────────────────────────────
 let superMap = {};   // cod → { nome, supermercados[], caixas[] }
 let armMap   = {};   // cod → { descArtigo, posicoes[] }
 let superLoaded = false, armLoaded = false;
- 
+
 // ── File loading ───────────────────────────────────────
 function loadFile(input, tipo) {
   const file = input.files[0];
@@ -195,7 +204,7 @@ function loadFile(input, tipo) {
   };
   reader.readAsArrayBuffer(file);
 }
- 
+
 function col(headers, terms) {
   for (const t of terms) {
     const i = headers.findIndex(h => h.toLowerCase().includes(t.toLowerCase()));
@@ -203,10 +212,10 @@ function col(headers, terms) {
   }
   return -1;
 }
- 
+
 function v(row, i) { return i !== -1 ? String(row[i] || '').trim() : ''; }
 function n(row, i) { return i !== -1 && row[i] !== '' ? row[i] : ''; }
- 
+
 function processSuperFile(headers, rows, fname) {
   const iCod    = col(headers, ['Código Artigo', 'Codigo Artigo']);
   const iNome   = col(headers, ['Artigo']);
@@ -216,7 +225,7 @@ function processSuperFile(headers, rows, fname) {
   const iNrCx   = col(headers, ['Nº Caixas', 'Nr Caixas', 'Numero Caixas']);
   const iQtdCx  = col(headers, ['Quantidade Caixa']);
   const iQtdTot = col(headers, ['Quantidade Total']);
- 
+
   superMap = {};
   rows.forEach(r => {
     const cod = v(r, iCod);
@@ -229,17 +238,17 @@ function processSuperFile(headers, rows, fname) {
       superMap[cod].supermercados.push({ cod: sCod, nome: sNome });
     const tipoCx = v(r, iTipoCx);
     if (tipoCx) {
-      const key = tipoCx + '|' + sNome;
+      const key = tipoCx + '|' + sNome + '|' + n(r, iQtdCx) + '|' + n(r, iNrCx) + '|' + n(r, iQtdTot);
       if (!superMap[cod].caixas.find(c => c.key === key))
-        superMap[cod].caixas.push({ key, tipoCx, qtdCx: n(r, iQtdCx), nrCx: n(r, iNrCx), qtdTotal: n(r, iQtdTot), superNome: sNome });
+        superMap[cod].caixas.push({ key, tipoCx, qtdCx: n(r, iQtdCx), nrCx: n(r, iNrCx), qtdTotal: n(r, iQtdTot), superNome: sNome, superCod: sCod });
     }
   });
- 
+
   superLoaded = true;
   markLoaded('z-super', 'count-super', fname, Object.keys(superMap).length + ' artigos');
   checkReady();
 }
- 
+
 function processArmFile(headers, rows, fname) {
   const iCod      = col(headers, ['Código Artigo', 'Codigo Artigo']);
   const iDescArt  = col(headers, ['Descrição Artigo', 'Descricao Artigo']);
@@ -249,7 +258,7 @@ function processArmFile(headers, rows, fname) {
   const iDescZona = col(headers, ['Descrição Zona', 'Descricao Zona']);
   const iUM       = col(headers, ['Unidade de Medida']);
   const iObs      = col(headers, ['Obs']);
- 
+
   armMap = {};
   rows.forEach(r => {
     const cod = v(r, iCod);
@@ -261,12 +270,12 @@ function processArmFile(headers, rows, fname) {
     if (entry.nomeArm && !armMap[cod].posicoes.find(p => p.nomeArm === entry.nomeArm && p.descZona === entry.descZona))
       armMap[cod].posicoes.push(entry);
   });
- 
+
   armLoaded = true;
   markLoaded('z-arm', 'count-arm', fname, Object.keys(armMap).length + ' artigos');
   checkReady();
 }
- 
+
 function markLoaded(zoneId, countId, fname, info) {
   const zone = document.getElementById(zoneId);
   zone.classList.add('loaded');
@@ -275,7 +284,7 @@ function markLoaded(zoneId, countId, fname, info) {
   countEl.textContent = '✓ ' + fname.split('/').pop() + ' — ' + info;
   countEl.style.display = 'block';
 }
- 
+
 function checkReady() {
   if (superLoaded && armLoaded) {
     document.getElementById('ready-msg').style.display = 'flex';
@@ -284,27 +293,27 @@ function checkReady() {
     inp.focus();
   }
 }
- 
+
 // ── Search ─────────────────────────────────────────────
 function getNome(cod) {
   return (superMap[cod] && superMap[cod].nome) || (armMap[cod] && armMap[cod].descArtigo) || '';
 }
- 
+
 function doSearch() {
   const q = document.getElementById('search-input').value.trim().toLowerCase();
   document.getElementById('btn-clear').style.display = q ? 'inline-flex' : 'none';
   if (!q) { document.getElementById('results').style.display = 'none'; return; }
- 
+
   const allCods = [...new Set([...Object.keys(superMap), ...Object.keys(armMap)])];
   const found   = allCods.filter(cod =>
     cod.toLowerCase().includes(q) || getNome(cod).toLowerCase().includes(q)
   );
- 
+
   document.getElementById('results').style.display = 'block';
   document.getElementById('results-header').textContent = found.length
     ? found.length + ' resultado(s) encontrado(s)' + (found.length === 30 ? ' — mostrando os primeiros 30' : '')
     : '';
- 
+
   const container = document.getElementById('cards-container');
   if (!found.length) {
     container.innerHTML = `<div class="empty-state">
@@ -315,24 +324,74 @@ function doSearch() {
   }
   container.innerHTML = found.slice(0, 30).map(renderCard).join('');
 }
- 
+
 function clearSearch() {
   document.getElementById('search-input').value = '';
   document.getElementById('btn-clear').style.display = 'none';
   document.getElementById('results').style.display = 'none';
   document.getElementById('search-input').focus();
 }
- 
+
 // ── Render ─────────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
- 
+
+
+function toNumber(value) {
+  if (value === '' || value === null || value === undefined) return 0;
+  const normalized = String(value).replace(/\s/g, '').replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function fmtQty(value) {
+  const num = toNumber(value);
+  if (!num) return value !== '' && value !== null && value !== undefined ? escHtml(value) : '—';
+  return escHtml(new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(num));
+}
+
+function summarizeCaixas(caixas) {
+  const byTipo = {};
+  const bySuper = {};
+  caixas.forEach(c => {
+    const tipo = c.tipoCx || 'Sem tipo';
+    const sup = c.superNome || 'Sem supermercado';
+    const total = toNumber(c.qtdTotal) || (toNumber(c.qtdCx) * toNumber(c.nrCx));
+    byTipo[tipo] = Math.max(byTipo[tipo] || 0, total);
+    bySuper[sup] = (bySuper[sup] || 0) + total;
+  });
+  return { byTipo, bySuper };
+}
+
 function renderCard(cod) {
   const s    = superMap[cod] || { supermercados: [], caixas: [] };
   const a    = armMap[cod]   || { posicoes: [] };
   const nome = getNome(cod);
- 
+
+  const totals = summarizeCaixas(s.caixas);
+  const maxTipoEntries = Object.entries(totals.byTipo);
+  const superTotalEntries = Object.entries(totals.bySuper);
+  const topTipo = maxTipoEntries.length ? maxTipoEntries.reduce((best, cur) => cur[1] > best[1] ? cur : best) : null;
+  const topSuper = superTotalEntries.length ? superTotalEntries.reduce((best, cur) => cur[1] > best[1] ? cur : best) : null;
+  const infoHTML = `<div class="info-grid">
+    <div class="info-card">
+      <div class="info-card-label">Supermercados com artigo</div>
+      <div class="info-card-value">${s.supermercados.length || '—'}</div>
+      <div class="info-card-note">${s.supermercados.length ? escHtml(s.supermercados.map(x => x.nome).join(', ')) : 'Sem associação'}</div>
+    </div>
+    <div class="info-card green">
+      <div class="info-card-label">Tipos de caixa</div>
+      <div class="info-card-value">${maxTipoEntries.length || '—'}</div>
+      <div class="info-card-note">${topTipo ? `${escHtml(topTipo[0])}: máx. ${fmtQty(topTipo[1])}` : 'Sem caixas'}</div>
+    </div>
+    <div class="info-card amber">
+      <div class="info-card-label">Maior total por supermercado</div>
+      <div class="info-card-value">${topSuper ? fmtQty(topSuper[1]) : '—'}</div>
+      <div class="info-card-note">${topSuper ? escHtml(topSuper[0]) : 'Sem quantidades'}</div>
+    </div>
+  </div>`;
+
   // ── Armazém block ──
   const armHTML = a.posicoes.length
     ? `<div class="arm-grid">${a.posicoes.map(p => `
@@ -343,14 +402,14 @@ function renderCard(cod) {
           ${p.obs ? `<div class="arm-cell-obs">${escHtml(p.obs)}</div>` : ''}
         </div>`).join('')}</div>`
     : '<span class="no-data">Sem dados de armazém</span>';
- 
+
   // ── Supermercados block ──
   const superHTML = s.supermercados.length
     ? `<div class="super-tags">${s.supermercados.map(sv =>
         `<span class="super-tag" title="Cód: ${escHtml(sv.cod)}">${escHtml(sv.nome)}</span>`
       ).join('')}</div>`
     : '<span class="no-data">Não associado a supermercados</span>';
- 
+
   // ── Caixas table ──
   let cxHTML = '';
   if (s.caixas.length) {
@@ -370,19 +429,27 @@ function renderCard(cod) {
         </div>
         <div class="cx-wrap">
           <table class="cx">
-            <thead><tr><th>Tipo Cx</th><th>Qtd / Cx</th><th>Nº Cx</th><th>Total máx.</th><th>Supermercado</th></tr></thead>
+            <thead><tr><th>Tipo Cx</th><th>Qtd / Cx</th><th>Nº Cx</th><th>Qtd total no supermercado</th><th>Supermercado onde está</th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
       </div>`;
   }
- 
+
   return `<div class="artigo-card">
     <div class="artigo-card-header">
       <span class="cod-pill">${escHtml(cod)}</span>
       <span class="artigo-nome">${escHtml(nome || '—')}</span>
     </div>
     <div class="artigo-card-body">
+      <div>
+        <div class="sec-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          Informação importante
+        </div>
+        ${infoHTML}
+      </div>
+      <hr class="divider">
       <div>
         <div class="sec-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
