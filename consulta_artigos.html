@@ -1,9 +1,51 @@
 <!DOCTYPE html>
 <html lang="pt">
 <head>
+<!--
+  Consulta de Artigos — v1.3.2
+  Semantic Versioning (https://semver.org)
+
+  Changelog:
+  v1.3.2 (atual)
+    - fix: pesquisa por supermercado passa a ignorar acentos (ex: "Povoa"
+      encontra "Póvoa"), tornando-a mais fiável
+  v1.3.1
+    - change: tipos de caixa (cartão de resumo e secção "Caixas por
+      supermercado") passam a aparecer por ordem alfabética
+    - change: secção "Caixas por supermercado" passa a aparecer acima de
+      "Supermercados" na ficha do artigo
+    - feat: a pesquisa passa a encontrar também por supermercado (código ou
+      descrição), além de código/descrição do artigo
+  v1.3.0
+    - change: cartão "Supermercados com artigo" mostra agora quantos são HPH
+      e quantos são ACES, em vez da lista de nomes
+    - change: cartão "Tipos de caixa" mostra apenas os tipos existentes
+      (sem quantidades)
+    - change: secção "Caixas por supermercado" passou a agrupar por HPH/ACES,
+      mostrando o tipo de caixa e a quantidade máxima de cada grupo, em vez
+      de uma linha por supermercado
+  v1.2.0
+    - feat: painel "Informação importante" em cada artigo com resumo rápido
+      (nº de supermercados, tipos de caixa com quantidade máxima, maior
+      total por supermercado)
+    - feat: supermercados agrupados por "Local" (HPH / ACES), lido da coluna
+      "Local" do ficheiro de supermercados
+    - chore: nomes dos ficheiros no ecrã de upload atualizados para
+      "T_supermercados" e "Consumo" (apenas o texto mostrado; estrutura de
+      colunas não mudou)
+  v1.1.0
+    - fix: correção de correspondência de colunas ("Artigo" deixou de apanhar
+      "Código Artigo"; "Supermercado" deixou de apanhar "Código Supermercado")
+    - feat: quantidade máxima por tipo de caixa (quando há linhas duplicadas
+      para o mesmo tipo de caixa + supermercado, mantém-se a de maior total)
+    - feat: total agregado por supermercado (soma dos máximos de cada tipo
+      de caixa), mostrado como resumo na ficha do artigo
+  v1.0.1
+    - versão inicial
+-->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.1.0</title>
+<title>Consulta de Artigos — v1.3.2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -88,18 +130,29 @@
   /* DIVIDER */
   .divider { border: none; border-top: 1px solid var(--border); }
 
-  /* IMPORTANT INFO */
-  .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
-  .info-card { background: var(--blue-bg); border: 1px solid rgba(26,79,160,0.14); border-radius: var(--radius-sm); padding: 10px 12px; }
-  .info-card.green { background: var(--green-bg); border-color: rgba(26,102,50,0.16); }
-  .info-card.amber { background: var(--amber-bg); border-color: rgba(138,90,0,0.16); }
-  .info-card-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
-  .info-card-value { font-size: 16px; font-weight: 700; color: var(--text); line-height: 1.2; }
-  .info-card-note { font-size: 11px; color: var(--text2); margin-top: 3px; }
-
   /* SUPER TAGS */
   .super-tags { display: flex; flex-wrap: wrap; gap: 6px; }
   .super-tag { background: var(--amber-bg); color: var(--amber-txt); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 99px; }
+  .super-group { margin-bottom: 10px; }
+  .super-group:last-child { margin-bottom: 0; }
+  .super-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); margin-bottom: 6px; }
+
+  /* INFO PANEL */
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .info-card { border-radius: var(--radius-sm); padding: 12px 14px; }
+  .info-card.blue  { background: var(--blue-bg); }
+  .info-card.green { background: var(--green-bg); }
+  .info-card.amber { background: var(--amber-bg); }
+  .info-card-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .info-card.blue  .info-card-title { color: var(--blue-txt); }
+  .info-card.green .info-card-title { color: var(--green-txt); }
+  .info-card.amber .info-card-title { color: var(--amber-txt); }
+  .info-card-num { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; margin-bottom: 6px; }
+  .info-card-detail { font-size: 12px; color: var(--text2); line-height: 1.5; word-break: break-word; }
+
+  @media (max-width: 600px) {
+    .info-grid { grid-template-columns: 1fr; }
+  }
 
   /* CAIXAS TABLE */
   .cx-wrap { overflow-x: auto; }
@@ -110,6 +163,14 @@
   table.cx td.mono { font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; }
   table.cx td.muted { color: var(--text2); }
   .badge-total { background: var(--blue-bg); color: var(--blue-txt); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; font-family: 'Cascadia Code', 'Courier New', monospace; }
+
+  /* CAIXAS POR GRUPO (HPH / ACES) */
+  .cxgrp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .cxgrp-col { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .cxgrp-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin-bottom: 8px; }
+  .cxgrp-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .cxgrp-row:last-child { border-bottom: none; }
+  .cxgrp-tipo { font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; font-size: 13px; color: var(--text); }
 
   /* EMPTY */
   .no-data { color: var(--text3); font-size: 13px; font-style: italic; }
@@ -131,7 +192,7 @@
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.1.0</span>
+  <span class="version">v1.3.2</span>
 </header>
 
 <div class="container">
@@ -140,14 +201,14 @@
   <div class="upload-grid">
     <div class="upload-card" id="z-super" onclick="document.getElementById('f-super').click()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
-      <div class="uc-title">Super_Artigo_KB</div>
+      <div class="uc-title">T_supermercados</div>
       <div class="uc-sub">Supermercados / Kanbans</div>
       <div class="uc-count" id="count-super" style="display:none"></div>
       <input type="file" id="f-super" accept=".xlsx" onchange="loadFile(this,'super')">
     </div>
     <div class="upload-card" id="z-arm" onclick="document.getElementById('f-arm').click()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-      <div class="uc-title">Arm_Artigo_Zona_Pos</div>
+      <div class="uc-title">Consumo</div>
       <div class="uc-sub">Armazém / Posições</div>
       <div class="uc-count" id="count-arm" style="display:none"></div>
       <input type="file" id="f-arm" accept=".xlsx" onchange="loadFile(this,'arm')">
@@ -163,7 +224,7 @@
   <!-- SEARCH -->
   <div class="search-wrap">
     <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="text" id="search-input" placeholder="Pesquisar por código ou descrição do artigo…" oninput="doSearch()" disabled>
+    <input type="text" id="search-input" placeholder="Pesquisar por artigo ou supermercado (código ou descrição)…" oninput="doSearch()" disabled>
     <button id="btn-clear" onclick="clearSearch()" title="Limpar pesquisa">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
@@ -205,7 +266,14 @@ function loadFile(input, tipo) {
   reader.readAsArrayBuffer(file);
 }
 
+// Prefere correspondência EXATA do cabeçalho; só recorre a substring se não
+// houver exata. Sem isto, procurar "Artigo" apanhava "Código Artigo" (porque
+// contém "artigo"), e "Supermercado" apanhava "Código Supermercado".
 function col(headers, terms) {
+  for (const t of terms) {
+    const i = headers.findIndex(h => h.toLowerCase() === t.toLowerCase());
+    if (i !== -1) return i;
+  }
   for (const t of terms) {
     const i = headers.findIndex(h => h.toLowerCase().includes(t.toLowerCase()));
     if (i !== -1) return i;
@@ -216,11 +284,22 @@ function col(headers, terms) {
 function v(row, i) { return i !== -1 ? String(row[i] || '').trim() : ''; }
 function n(row, i) { return i !== -1 && row[i] !== '' ? row[i] : ''; }
 
+// Classifica o valor da coluna "Local" em HPH, ACES ou Outro. Feito por
+// palavra-chave (não exato) para tolerar variações tipo "HPH Braga" ou
+// "ACES Porto Oriental".
+function classificaLocal(local) {
+  const l = local.toUpperCase();
+  if (l.includes('ACES')) return 'ACES';
+  if (l.includes('HPH'))  return 'HPH';
+  return 'Outro';
+}
+
 function processSuperFile(headers, rows, fname) {
   const iCod    = col(headers, ['Código Artigo', 'Codigo Artigo']);
   const iNome   = col(headers, ['Artigo']);
   const iSuper  = col(headers, ['Supermercado']);
   const iCodS   = col(headers, ['Código Supermercado', 'Codigo Supermercado']);
+  const iLocal  = col(headers, ['Local']);
   const iTipoCx = col(headers, ['Tipo Caixa']);
   const iNrCx   = col(headers, ['Nº Caixas', 'Nr Caixas', 'Numero Caixas']);
   const iQtdCx  = col(headers, ['Quantidade Caixa']);
@@ -233,22 +312,90 @@ function processSuperFile(headers, rows, fname) {
     if (!superMap[cod]) superMap[cod] = { nome: '', supermercados: [], caixas: [] };
     const nome = v(r, iNome);
     if (nome && !superMap[cod].nome) superMap[cod].nome = nome;
-    const sNome = v(r, iSuper), sCod = v(r, iCodS);
+    const sNome = v(r, iSuper), sCod = v(r, iCodS), sLocal = v(r, iLocal);
     if (sNome && !superMap[cod].supermercados.find(s => s.nome === sNome))
-      superMap[cod].supermercados.push({ cod: sCod, nome: sNome });
+      superMap[cod].supermercados.push({ cod: sCod, nome: sNome, local: sLocal, grupo: classificaLocal(sLocal) });
     const tipoCx = v(r, iTipoCx);
     if (tipoCx) {
-      const key = tipoCx + '|' + sNome + '|' + n(r, iQtdCx) + '|' + n(r, iNrCx) + '|' + n(r, iQtdTot);
-      if (!superMap[cod].caixas.find(c => c.key === key))
-        superMap[cod].caixas.push({ key, tipoCx, qtdCx: n(r, iQtdCx), nrCx: n(r, iNrCx), qtdTotal: n(r, iQtdTot), superNome: sNome, superCod: sCod });
+      // Guarda a linha "em bruto"; a agregação (máximo por tipo+supermercado)
+      // é feita depois por aggregateCaixas, pois o export pode ter mais que
+      // uma linha para a mesma combinação tipo de caixa + supermercado.
+      superMap[cod].caixas.push({ tipoCx, qtdCx: n(r, iQtdCx), nrCx: n(r, iNrCx), qtdTotal: n(r, iQtdTot), superNome: sNome, grupo: classificaLocal(sLocal) });
     }
   });
+
+  // Colapsa duplicados: para cada (tipo de caixa, supermercado) fica só a
+  // linha com a maior Quantidade Total — "quantidade máxima por tipo de caixa".
+  Object.values(superMap).forEach(a => { a.caixas = aggregateCaixas(a.caixas); });
 
   superLoaded = true;
   markLoaded('z-super', 'count-super', fname, Object.keys(superMap).length + ' artigos');
   checkReady();
 }
 
+// Colapsa linhas duplicadas por (tipoCx, superNome), mantendo a de maior
+// Quantidade Total.
+function aggregateCaixas(rows) {
+  const byKey = new Map();
+  for (const r of rows) {
+    const key = r.tipoCx + '|' + r.superNome;
+    const atual = byKey.get(key);
+    const total = Number(r.qtdTotal) || 0;
+    if (!atual || total > (Number(atual.qtdTotal) || 0)) byKey.set(key, r);
+  }
+  return [...byKey.values()];
+}
+
+// Soma, por supermercado, os totais já agregados (máximos) de cada tipo de
+// caixa — "quantidade total por supermercado".
+function totaisPorSupermercado(caixasAgregadas) {
+  const totais = {};
+  for (const c of caixasAgregadas) {
+    totais[c.superNome] = (totais[c.superNome] || 0) + (Number(c.qtdTotal) || 0);
+  }
+  return totais;
+}
+
+// Supermercado com o maior total agregado — usado no cartão "Maior total
+// por supermercado" do resumo.
+function maiorTotalSupermercado(totais) {
+  let nome = '', valor = -1;
+  for (const [k, v] of Object.entries(totais)) {
+    if (v > valor) { nome = k; valor = v; }
+  }
+  return valor >= 0 ? { nome, valor } : null;
+}
+// Lista (sem duplicados) dos tipos de caixa que o artigo tem, ordenada
+// alfabeticamente — usada no cartão "Tipos de caixa" do resumo.
+function tiposDeCaixa(caixasAgregadas) {
+  const vistos = new Set();
+  const lista = [];
+  for (const c of caixasAgregadas) {
+    if (!vistos.has(c.tipoCx)) { vistos.add(c.tipoCx); lista.push(c.tipoCx); }
+  }
+  return lista.sort((a, b) => a.localeCompare(b, 'pt'));
+}
+
+// Para cada grupo (HPH / ACES / Outro), a maior "Quantidade Total" de cada
+// tipo de caixa entre os supermercados desse grupo, ordenada alfabeticamente
+// por tipo — usada na secção "Caixas por supermercado", agora organizada
+// por grupo.
+function maxPorTipoEGrupo(caixasAgregadas) {
+  const porGrupo = {};
+  for (const c of caixasAgregadas) {
+    if (!porGrupo[c.grupo]) porGrupo[c.grupo] = new Map();
+    const val = Number(c.qtdTotal) || 0;
+    const atual = porGrupo[c.grupo].get(c.tipoCx) || 0;
+    if (val > atual) porGrupo[c.grupo].set(c.tipoCx, val);
+  }
+  const resultado = {};
+  for (const [grupo, mapa] of Object.entries(porGrupo)) {
+    resultado[grupo] = [...mapa.entries()]
+      .map(([tipo, max]) => ({ tipo, max }))
+      .sort((a, b) => a.tipo.localeCompare(b.tipo, 'pt'));
+  }
+  return resultado;
+}
 function processArmFile(headers, rows, fname) {
   const iCod      = col(headers, ['Código Artigo', 'Codigo Artigo']);
   const iDescArt  = col(headers, ['Descrição Artigo', 'Descricao Artigo']);
@@ -294,19 +441,35 @@ function checkReady() {
   }
 }
 
+// Remove acentos para tornar a comparação mais tolerante (ex: "Povoa"
+// encontra "Póvoa"). Também baixa para minúsculas.
+function normaliza(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 // ── Search ─────────────────────────────────────────────
 function getNome(cod) {
   return (superMap[cod] && superMap[cod].nome) || (armMap[cod] && armMap[cod].descArtigo) || '';
 }
 
+// Verifica se algum supermercado associado ao artigo bate com o termo de
+// pesquisa, pelo código ou pela descrição.
+function superBate(cod, q) {
+  const supers = (superMap[cod] && superMap[cod].supermercados) || [];
+  return supers.some(sv =>
+    (sv.nome && normaliza(sv.nome).includes(q)) ||
+    (sv.cod  && normaliza(sv.cod).includes(q))
+  );
+}
+
 function doSearch() {
-  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const q = normaliza(document.getElementById('search-input').value.trim());
   document.getElementById('btn-clear').style.display = q ? 'inline-flex' : 'none';
   if (!q) { document.getElementById('results').style.display = 'none'; return; }
 
   const allCods = [...new Set([...Object.keys(superMap), ...Object.keys(armMap)])];
   const found   = allCods.filter(cod =>
-    cod.toLowerCase().includes(q) || getNome(cod).toLowerCase().includes(q)
+    normaliza(cod).includes(q) || normaliza(getNome(cod)).includes(q) || superBate(cod, q)
   );
 
   document.getElementById('results').style.display = 'block';
@@ -337,60 +500,10 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-
-function toNumber(value) {
-  if (value === '' || value === null || value === undefined) return 0;
-  const normalized = String(value).replace(/\s/g, '').replace(',', '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function fmtQty(value) {
-  const num = toNumber(value);
-  if (!num) return value !== '' && value !== null && value !== undefined ? escHtml(value) : '—';
-  return escHtml(new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 2 }).format(num));
-}
-
-function summarizeCaixas(caixas) {
-  const byTipo = {};
-  const bySuper = {};
-  caixas.forEach(c => {
-    const tipo = c.tipoCx || 'Sem tipo';
-    const sup = c.superNome || 'Sem supermercado';
-    const total = toNumber(c.qtdTotal) || (toNumber(c.qtdCx) * toNumber(c.nrCx));
-    byTipo[tipo] = Math.max(byTipo[tipo] || 0, total);
-    bySuper[sup] = (bySuper[sup] || 0) + total;
-  });
-  return { byTipo, bySuper };
-}
-
 function renderCard(cod) {
   const s    = superMap[cod] || { supermercados: [], caixas: [] };
   const a    = armMap[cod]   || { posicoes: [] };
   const nome = getNome(cod);
-
-  const totals = summarizeCaixas(s.caixas);
-  const maxTipoEntries = Object.entries(totals.byTipo);
-  const superTotalEntries = Object.entries(totals.bySuper);
-  const topTipo = maxTipoEntries.length ? maxTipoEntries.reduce((best, cur) => cur[1] > best[1] ? cur : best) : null;
-  const topSuper = superTotalEntries.length ? superTotalEntries.reduce((best, cur) => cur[1] > best[1] ? cur : best) : null;
-  const infoHTML = `<div class="info-grid">
-    <div class="info-card">
-      <div class="info-card-label">Supermercados com artigo</div>
-      <div class="info-card-value">${s.supermercados.length || '—'}</div>
-      <div class="info-card-note">${s.supermercados.length ? escHtml(s.supermercados.map(x => x.nome).join(', ')) : 'Sem associação'}</div>
-    </div>
-    <div class="info-card green">
-      <div class="info-card-label">Tipos de caixa</div>
-      <div class="info-card-value">${maxTipoEntries.length || '—'}</div>
-      <div class="info-card-note">${topTipo ? `${escHtml(topTipo[0])}: máx. ${fmtQty(topTipo[1])}` : 'Sem caixas'}</div>
-    </div>
-    <div class="info-card amber">
-      <div class="info-card-label">Maior total por supermercado</div>
-      <div class="info-card-value">${topSuper ? fmtQty(topSuper[1]) : '—'}</div>
-      <div class="info-card-note">${topSuper ? escHtml(topSuper[0]) : 'Sem quantidades'}</div>
-    </div>
-  </div>`;
 
   // ── Armazém block ──
   const armHTML = a.posicoes.length
@@ -403,37 +516,93 @@ function renderCard(cod) {
         </div>`).join('')}</div>`
     : '<span class="no-data">Sem dados de armazém</span>';
 
-  // ── Supermercados block ──
-  const superHTML = s.supermercados.length
-    ? `<div class="super-tags">${s.supermercados.map(sv =>
-        `<span class="super-tag" title="Cód: ${escHtml(sv.cod)}">${escHtml(sv.nome)}</span>`
-      ).join('')}</div>`
-    : '<span class="no-data">Não associado a supermercados</span>';
+  // ── Supermercados block (agrupado por Local: HPH / ACES / Outro) ──
+  let superHTML = '<span class="no-data">Não associado a supermercados</span>';
+  if (s.supermercados.length) {
+    const ordem = ['HPH', 'ACES', 'Outro'];
+    const grupos = {};
+    s.supermercados.forEach(sv => {
+      if (!grupos[sv.grupo]) grupos[sv.grupo] = [];
+      grupos[sv.grupo].push(sv);
+    });
+    superHTML = ordem.filter(g => grupos[g] && grupos[g].length).map(g => `
+      <div class="super-group">
+        <div class="super-group-label">${escHtml(g)} (${grupos[g].length})</div>
+        <div class="super-tags">${grupos[g].map(sv =>
+          `<span class="super-tag" title="${sv.local ? 'Local: ' + escHtml(sv.local) : ''}">${escHtml(sv.nome)}</span>`
+        ).join('')}</div>
+      </div>`).join('');
+  }
 
-  // ── Caixas table ──
+  // ── Caixas por grupo (HPH / ACES / Outro) ──
   let cxHTML = '';
   if (s.caixas.length) {
-    const rows = s.caixas.map(c => `<tr>
-      <td class="mono muted">${escHtml(c.tipoCx)}</td>
-      <td>${c.qtdCx !== '' ? escHtml(c.qtdCx) : '—'}</td>
-      <td>${c.nrCx  !== '' ? escHtml(c.nrCx)  : '—'}</td>
-      <td><span class="badge-total">${c.qtdTotal !== '' ? escHtml(c.qtdTotal) : '—'}</span></td>
-      <td class="muted">${escHtml(c.superNome || '—')}</td>
-    </tr>`).join('');
+    const porGrupo = maxPorTipoEGrupo(s.caixas);
+    const ordemGrupos = ['HPH', 'ACES', 'Outro'];
+    const colunas = ordemGrupos
+      .filter(g => porGrupo[g] && porGrupo[g].length)
+      .map(g => `
+        <div class="cxgrp-col">
+          <div class="cxgrp-title">${escHtml(g)}</div>
+          ${porGrupo[g].map(t => `
+            <div class="cxgrp-row">
+              <span class="cxgrp-tipo">${escHtml(t.tipo)}</span>
+              <span class="badge-total">${escHtml(t.max)}</span>
+            </div>`).join('')}
+        </div>`).join('');
     cxHTML = `
-      <hr class="divider">
       <div>
         <div class="sec-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
           Caixas por supermercado
         </div>
-        <div class="cx-wrap">
-          <table class="cx">
-            <thead><tr><th>Tipo Cx</th><th>Qtd / Cx</th><th>Nº Cx</th><th>Qtd total no supermercado</th><th>Supermercado onde está</th></tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>
+        <div class="cxgrp-grid">${colunas}</div>
       </div>`;
+  }
+
+  // ── Painel "Informação importante" ──
+  let infoHTML = '';
+  if (s.supermercados.length || s.caixas.length) {
+    const tipos  = tiposDeCaixa(s.caixas);
+    const totais = totaisPorSupermercado(s.caixas);
+    const maior  = maiorTotalSupermercado(totais);
+
+    // Contagem de supermercados por grupo (HPH / ACES / Outro)
+    const contagemGrupos = {};
+    s.supermercados.forEach(sv => { contagemGrupos[sv.grupo] = (contagemGrupos[sv.grupo] || 0) + 1; });
+    const ordemGrupos = ['HPH', 'ACES', 'Outro'];
+    const listaGrupos = ordemGrupos
+      .filter(g => contagemGrupos[g])
+      .map(g => `${contagemGrupos[g]} ${escHtml(g)}`)
+      .join(', ') || '—';
+
+    const listaTipos = tipos.length ? tipos.map(escHtml).join(', ') : '—';
+
+    infoHTML = `
+      <div>
+        <div class="sec-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          Informação importante
+        </div>
+        <div class="info-grid">
+          <div class="info-card blue">
+            <div class="info-card-title">Supermercados com artigo</div>
+            <div class="info-card-num">${s.supermercados.length}</div>
+            <div class="info-card-detail">${listaGrupos}</div>
+          </div>
+          <div class="info-card green">
+            <div class="info-card-title">Tipos de caixa</div>
+            <div class="info-card-num">${tipos.length}</div>
+            <div class="info-card-detail">${listaTipos}</div>
+          </div>
+          <div class="info-card amber">
+            <div class="info-card-title">Maior total por supermercado</div>
+            <div class="info-card-num">${maior ? escHtml(maior.valor) : '—'}</div>
+            <div class="info-card-detail">${maior ? escHtml(maior.nome) : '—'}</div>
+          </div>
+        </div>
+      </div>
+      <hr class="divider">`;
   }
 
   return `<div class="artigo-card">
@@ -442,14 +611,7 @@ function renderCard(cod) {
       <span class="artigo-nome">${escHtml(nome || '—')}</span>
     </div>
     <div class="artigo-card-body">
-      <div>
-        <div class="sec-label">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          Informação importante
-        </div>
-        ${infoHTML}
-      </div>
-      <hr class="divider">
+      ${infoHTML}
       <div>
         <div class="sec-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -457,6 +619,7 @@ function renderCard(cod) {
         </div>
         ${armHTML}
       </div>
+      ${cxHTML ? `<hr class="divider">${cxHTML}` : ''}
       <hr class="divider">
       <div>
         <div class="sec-label">
@@ -465,7 +628,6 @@ function renderCard(cod) {
         </div>
         ${superHTML}
       </div>
-      ${cxHTML}
     </div>
   </div>`;
 }
