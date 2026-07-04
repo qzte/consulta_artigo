@@ -1,0 +1,18 @@
+{
+  "name": "Consulta_Artigos",
+  "short_name": "Inventário",
+  "description": "Consulta de artigos",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#111827",
+  "lang": "pt",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
