@@ -1,6 +1,6 @@
 {
   "name": "Consulta_Artigos",
-  "short_name": "Inventário",
+  "short_name": "Consulta",
   "description": "Consulta de artigos",
   "start_url": "./index.html",
   "display": "standalone",
