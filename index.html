@@ -2,11 +2,20 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.12.0
+  Consulta de Artigos — v1.13.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.12.0 (atual)
+  v1.13.0 (atual)
+    - feat: app convertida em Progressive Web App (PWA) — pode ser
+      instalada (ecrã inicial / ambiente de trabalho) e funciona offline
+      depois da primeira visita. Requer 3 ficheiros novos ao lado do HTML:
+      manifest.json, sw.js e os ícones icon-192.png / icon-512.png /
+      icon-192-maskable.png / icon-512-maskable.png
+    - note: manifest.json aponta para o nome exato deste ficheiro HTML
+      (start_url); em cada futura subida de versão (nome de ficheiro
+      novo), o manifest.json e o sw.js têm de ser atualizados em conjunto
+  v1.12.0
     - change: no painel "Informação importante" da ficha de artigo, o bloco
       "Armazém e Posição" deixa de estar separado (acima) do grid de
       cartões — passa a ser o primeiro dos 3 cartões lado a lado, junto de
@@ -150,8 +159,15 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.12.0</title>
-<meta name="description" content="Consulta de Artigos v1.12.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.13.0</title>
+<meta name="description" content="Consulta de Artigos v1.13.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a4fa0">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Artigos">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -319,7 +335,7 @@
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.12.0</span>
+  <span class="version">v1.13.0</span>
 </header>
 
 <div class="container">
@@ -1151,6 +1167,20 @@ function renderCard(cod) {
       </div>
     </div>
   </div>`;
+}
+
+// ── PWA: registo do Service Worker ──────────────────────
+// Regista o sw.js (ficheiro à parte, tem de estar na mesma pasta do HTML
+// no GitHub Pages) para a app ficar instalável e funcionar offline depois
+// da primeira visita. Feito com "load" para não atrasar o arranque da
+// página, e protegido por "in navigator" para não rebentar em navegadores
+// sem suporte a Service Worker.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.warn('Falha ao registar o Service Worker (a app continua a funcionar normalmente, só sem modo offline):', err);
+    });
+  });
 }
 </script>
 </body>
