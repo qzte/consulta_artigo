@@ -2,11 +2,83 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.6.0
+  Consulta de Artigos — v1.11.1
   Semantic Versioning (https://semver.org)
 
-  Changelog: a
-  v1.6.0 (atual)
+  Changelog:
+  v1.11.1 (atual)
+    - fix: trocar entre os botões "Artigos" e "Supermercados / Serviços"
+      apagava o texto escrito na caixa de pesquisa (e a seleção feita no
+      índice de Supermercados / Serviços). Cada modo passa agora a manter
+      o seu próprio texto e seleção, de forma independente — voltar a um
+      modo mostra outra vez o que lá estava, sem se misturar com o outro
+  v1.11.0
+    - change: na ficha de artigo, "Armazém e Posição" deixa de ser uma
+      secção à parte — passa a ser a primeira parte do painel "Informação
+      importante", seguida dos cartões "Supermercados com artigo" e
+      "Maior total por supermercado"
+    - change: removido o cartão "Tipos de caixa" do painel (informação
+      redundante — os tipos já aparecem em "Caixas por supermercado")
+  v1.10.2
+    - fix: no índice de Serviço, a coluna de posição mostrava a posição de
+      ARMAZÉM (ficheiro Consumo) em vez da posição associada à própria
+      linha artigo+serviço no ficheiro T_supermercados. Passa a mostrar
+      "Posição no serviço", lida da mesma coluna "Posição" já usada no
+      índice de Supermercado — esta suposição errada vinha do v1.7.0/v1.7.1
+  v1.10.1
+    - fix: inconsistência visual entre os dois índices — o de Supermercado
+      só tinha o badge de Local (HPH/ACES) e o de Serviço só tinha os
+      botões de Área. As duas dimensões passam a aparecer nos dois
+      índices, sempre com a mesma regra: badge fixo se os artigos da ficha
+      só tiverem um valor (nada para filtrar), botões de filtro se
+      tiverem mais que um. Os filtros de Local e Área podem agora
+      combinar-se (uma linha só fica visível se bater com os dois)
+  v1.10.0
+    - change: a pesquisa "Supermercados / Serviços" deixa de mostrar logo
+      todas as fichas encontradas — passa a mostrar um badge por
+      supermercado/serviço encontrado (agrupados em "Supermercados" e
+      "Serviços"), e só a ficha do badge escolhido é que aparece com o
+      índice de artigos. Mesma lógica de "clicar para escolher, com estado
+      ativo" já usada nos botões de filtro por Área (v1.9.0)
+  v1.9.0
+    - feat: a coluna "Área" do ficheiro T_supermercados passa a ser lida;
+      na ficha de Serviço (pesquisa "Supermercados / Serviços"), quando um
+      serviço tem artigos de mais que uma área, aparecem botões junto ao
+      nome do serviço ("Todas" + uma por área) para filtrar a tabela de
+      artigos só à área escolhida
+  v1.8.0
+    - feat: as tabelas do índice (pesquisa "Supermercados / Serviços")
+      passam a poder ser ordenadas, ascendente ou descendente, clicando no
+      cabeçalho de Código, Artigo ou Posição; clicar outra vez no mesmo
+      cabeçalho inverte a direção
+    - change: a coluna única "Artigo" (código + descrição) do índice foi
+      dividida em duas colunas — "Código" e "Artigo" — para poderem ser
+      ordenadas separadamente
+  v1.7.1
+    - fix: no índice por supermercado (pesquisa "Supermercados / Serviços"),
+      a coluna "Posição" mostrava a posição do artigo no ARMAZÉM (ficheiro
+      Consumo), sempre igual independentemente do supermercado. Passa a
+      mostrar a posição correta — lida da coluna "Posição" do próprio
+      ficheiro T_supermercados, que é a posição do artigo DENTRO daquele
+      supermercado/kanban. O índice por serviço mantém a posição de
+      armazém, já que "Posição" no ficheiro de supermercados só faz
+      sentido associada a um supermercado, não a um serviço
+  v1.7.0
+    - feat: pesquisa por "Supermercados / Serviços" deixa de mostrar fichas
+      de artigo — passa a mostrar um índice por supermercado (ou serviço)
+      encontrado, com a lista de todos os artigos aí presentes (tipo de
+      caixa, quantidade e posição), em vez de obrigar a abrir cada artigo
+      um a um
+    - note: para "Serviço" não existe, nos ficheiros de origem, associação
+      direta entre caixa e serviço (só entre caixa e supermercado); por
+      isso, no índice por serviço, a coluna de caixas mostra todas as
+      caixas do artigo (de todos os supermercados), não só as do serviço
+  v1.6.1
+    - change: nomes dos botões de upload simplificados — "T_supermercados"
+      passa a "Supermercados" e "Consumo" passa a "Artigos" (apenas o texto
+      mostrado no botão; nomes internos dos ficheiros e estrutura de
+      colunas não mudam)
+  v1.6.0
     - feat: a pesquisa deixa de ser uma única caixa "tudo em um" — passa a
       haver dois botões, "Artigos" e "Supermercados / Serviços", cada um
       com a sua caixa de texto. Só uma caixa está visível de cada vez; ao
@@ -73,8 +145,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.6.0</title>
-<meta name="description" content="Consulta de Artigos v1.6.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.11.1</title>
+<meta name="description" content="Consulta de Artigos v1.11.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -179,14 +251,13 @@
   .super-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); margin-bottom: 6px; }
 
   /* INFO PANEL */
-  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
+  .info-sub-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin-bottom: 8px; }
   .info-card { border-radius: var(--radius-sm); padding: 12px 14px; }
   .info-card.blue  { background: var(--blue-bg); }
-  .info-card.green { background: var(--green-bg); }
   .info-card.amber { background: var(--amber-bg); }
   .info-card-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
   .info-card.blue  .info-card-title { color: var(--blue-txt); }
-  .info-card.green .info-card-title { color: var(--green-txt); }
   .info-card.amber .info-card-title { color: var(--amber-txt); }
   .info-card-num { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; margin-bottom: 6px; }
   .info-card-detail { font-size: 12px; color: var(--text2); line-height: 1.5; word-break: break-word; }
@@ -203,6 +274,15 @@
   table.cx tr:last-child td { border-bottom: none; }
   table.cx td.mono { font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; }
   table.cx td.muted { color: var(--text2); }
+  table.cx th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  table.cx th.sortable:hover { color: var(--text); }
+
+  /* ÁREA (filtro na ficha de Serviço) */
+  .sgc-header-main { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+  .area-filter-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .area-btn { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); font: inherit; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 99px; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .area-btn:hover { color: var(--text); border-color: var(--text3); }
+  .area-btn.active { background: var(--blue-bg); color: var(--blue-txt); border-color: var(--blue-txt); }
   .badge-total { background: var(--blue-bg); color: var(--blue-txt); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; font-family: 'Cascadia Code', 'Courier New', monospace; }
 
   /* CAIXAS POR GRUPO (HPH / ACES) */
@@ -233,7 +313,7 @@
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.6.0</span>
+  <span class="version">v1.11.1</span>
 </header>
 
 <div class="container">
@@ -243,14 +323,14 @@
     <div class="upload-grid">
       <div class="upload-card" id="z-super" onclick="document.getElementById('f-super').click()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
-        <div class="uc-title">T_supermercados</div>
+        <div class="uc-title">Supermercados</div>
         <div class="uc-sub">Supermercados / Kanbans</div>
         <div class="uc-count" id="count-super" style="display:none"></div>
         <input type="file" id="f-super" accept=".xlsx" onchange="loadFile(this,'super')">
       </div>
       <div class="upload-card" id="z-arm" onclick="document.getElementById('f-arm').click()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        <div class="uc-title">Consumo</div>
+        <div class="uc-title">Artigos</div>
         <div class="uc-sub">Armazém / Posições</div>
         <div class="uc-count" id="count-arm" style="display:none"></div>
         <input type="file" id="f-arm" accept=".xlsx" onchange="loadFile(this,'arm')">
@@ -354,7 +434,9 @@ function processSuperFile(headers, rows, fname) {
   const iCodS   = col(headers, ['Código Supermercado', 'Codigo Supermercado']);
   const iServ   = col(headers, ['Serviço', 'Servico']);
   const iCodServ= col(headers, ['Código Serviço', 'Codigo Servico', 'Codigo Servico']);
+  const iArea   = col(headers, ['Área', 'Area']);
   const iLocal  = col(headers, ['Local']);
+  const iPosicao= col(headers, ['Posição', 'Posicao']);
   const iTipoCx = col(headers, ['Tipo Caixa']);
   const iNrCx   = col(headers, ['Nº Caixas', 'Nr Caixas', 'Numero Caixas']);
   const iQtdCx  = col(headers, ['Quantidade Caixa']);
@@ -367,12 +449,12 @@ function processSuperFile(headers, rows, fname) {
     if (!superMap[cod]) superMap[cod] = { nome: '', supermercados: [], servicos: [], caixas: [] };
     const nome = v(r, iNome);
     if (nome && !superMap[cod].nome) superMap[cod].nome = nome;
-    const sNome = v(r, iSuper), sCod = v(r, iCodS), sLocal = v(r, iLocal);
+    const sNome = v(r, iSuper), sCod = v(r, iCodS), sLocal = v(r, iLocal), sPosicao = v(r, iPosicao), sArea = v(r, iArea);
     if (sNome && !superMap[cod].supermercados.find(s => s.nome === sNome))
-      superMap[cod].supermercados.push({ cod: sCod, nome: sNome, local: sLocal, grupo: classificaLocal(sLocal) });
+      superMap[cod].supermercados.push({ cod: sCod, nome: sNome, local: sLocal, grupo: classificaLocal(sLocal), posicao: sPosicao, area: sArea });
     const servNome = v(r, iServ), servCod = v(r, iCodServ);
     if (servNome && !superMap[cod].servicos.find(sv => sv.nome === servNome))
-      superMap[cod].servicos.push({ cod: servCod, nome: servNome });
+      superMap[cod].servicos.push({ cod: servCod, nome: servNome, area: sArea, local: sLocal, grupo: classificaLocal(sLocal), posicao: sPosicao });
     const tipoCx = v(r, iTipoCx);
     if (tipoCx) {
       // Guarda a linha "em bruto"; a agregação (máximo por tipo+supermercado)
@@ -422,16 +504,6 @@ function maiorTotalSupermercado(totais) {
     if (v > valor) { nome = k; valor = v; }
   }
   return valor >= 0 ? { nome, valor } : null;
-}
-// Lista (sem duplicados) dos tipos de caixa que o artigo tem, ordenada
-// alfabeticamente — usada no cartão "Tipos de caixa" do resumo.
-function tiposDeCaixa(caixasAgregadas) {
-  const vistos = new Set();
-  const lista = [];
-  for (const c of caixasAgregadas) {
-    if (!vistos.has(c.tipoCx)) { vistos.add(c.tipoCx); lista.push(c.tipoCx); }
-  }
-  return lista.sort((a, b) => a.localeCompare(b, 'pt'));
 }
 
 // Para cada grupo (HPH / ACES / Outro), a maior "Quantidade Total" de cada
@@ -520,6 +592,12 @@ function checkReady() {
 // não ficar a mostrar resultados de um tipo de pesquisa diferente.
 let searchMode = 'artigo';
 
+// No modo "Supermercados / Serviços", o resultado passa a ser escolhido
+// por badge (em vez de mostrar logo todas as fichas encontradas). Esta
+// variável guarda QUAL supermercado/serviço está escolhido — formato
+// "tipo|cod|nome" — e é nulo quando ainda não há escolha.
+let selectedIndexKey = null;
+
 function activeSearchInputId() {
   return searchMode === 'artigo' ? 'search-input-artigo' : 'search-input-super';
 }
@@ -533,14 +611,13 @@ function setSearchMode(mode) {
   document.getElementById('search-input-artigo').style.display = mode === 'artigo' ? 'block' : 'none';
   document.getElementById('search-input-super').style.display  = mode === 'super'  ? 'block' : 'none';
 
-  document.getElementById('search-input-artigo').value = '';
-  document.getElementById('search-input-super').value = '';
-  document.getElementById('btn-clear').style.display = 'none';
-  document.getElementById('results').style.display = 'none';
-  document.getElementById('cards-container').innerHTML = '';
-
+  // Cada modo mantém o seu próprio texto e (no caso de "Supermercados /
+  // Serviços") a sua seleção — não se limpa nada ao trocar de modo. Voltar
+  // a um modo mostra outra vez o que lá estava, tal como se nunca se tivesse
+  // saído dele.
   const inp = document.getElementById(activeSearchInputId());
   if (!inp.disabled) inp.focus();
+  doSearch();
 }
 
 // Reabre a zona de upload para permitir trocar um ou os dois ficheiros.
@@ -562,21 +639,23 @@ function getNome(cod) {
   return (superMap[cod] && superMap[cod].nome) || (armMap[cod] && armMap[cod].descArtigo) || '';
 }
 
-// Verifica se algum supermercado associado ao artigo bate com o termo de
-// pesquisa, pelo código ou pela descrição.
-function superBate(cod, q) {
+// Devolve os supermercados associados ao artigo que batem com o termo de
+// pesquisa (código ou descrição). Ao contrário de um simples true/false,
+// devolve os próprios supermercados porque o modo "Supermercados / Serviços"
+// precisa de saber QUAL supermercado bateu, para construir o índice.
+function supersQueBatem(cod, q) {
   const supers = (superMap[cod] && superMap[cod].supermercados) || [];
-  return supers.some(sv =>
+  return supers.filter(sv =>
     (sv.nome && normaliza(sv.nome).includes(q)) ||
     (sv.cod  && normaliza(sv.cod).includes(q))
   );
 }
 
-// Verifica se algum serviço associado ao artigo bate com o termo de
-// pesquisa, pelo código ou pela descrição.
-function servicoBate(cod, q) {
+// Devolve os serviços associados ao artigo que batem com o termo de
+// pesquisa (código ou descrição). Mesma lógica de supersQueBatem.
+function servicosQueBatem(cod, q) {
   const servicos = (superMap[cod] && superMap[cod].servicos) || [];
-  return servicos.some(sv =>
+  return servicos.filter(sv =>
     (sv.nome && normaliza(sv.nome).includes(q)) ||
     (sv.cod  && normaliza(sv.cod).includes(q))
   );
@@ -588,10 +667,126 @@ function matchArtigo(cod, q) {
   return normaliza(cod).includes(q) || normaliza(getNome(cod)).includes(q);
 }
 
-// Modo "Supermercados / Serviços": encontra só por supermercado ou serviço
-// associado ao artigo — nunca por código/descrição do artigo em si.
-function matchSuperServico(cod, q) {
-  return superBate(cod, q) || servicoBate(cod, q);
+// Constrói o índice de supermercados que batem com a pesquisa. Cada
+// supermercado encontrado agrupa todos os artigos que lá existem, com o
+// respetivo tipo de caixa + quantidade (já é a Quantidade Total máxima
+// desse tipo de caixa NESSE supermercado, porque superMap[].caixas já vem
+// agregado por (tipo de caixa, supermercado) desde o carregamento do
+// ficheiro — ver aggregateCaixas) e a posição em armazém.
+function buildSupermercadoIndex(q) {
+  const idx = new Map(); // chave: cod+nome do supermercado
+  Object.keys(superMap).forEach(cod => {
+    supersQueBatem(cod, q).forEach(sv => {
+      const key = sv.cod + '|' + sv.nome;
+      if (!idx.has(key)) idx.set(key, { cod: sv.cod, nome: sv.nome, grupo: sv.grupo, artigos: [] });
+      idx.get(key).artigos.push({
+        cod,
+        nome: getNome(cod),
+        caixas: (superMap[cod].caixas || []).filter(c => c.superNome === sv.nome),
+        posicao: sv.posicao,
+        posicaoTexto: sv.posicao || '',
+        grupo: sv.grupo || '',
+        area: sv.area || ''
+      });
+    });
+  });
+  return [...idx.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// Constrói o índice de serviços que batem com a pesquisa, no mesmo formato
+// de buildSupermercadoIndex. Nota: os ficheiros de origem não associam
+// caixa a serviço diretamente (só a supermercado), por isso aqui mostram-se
+// TODAS as caixas do artigo (de todos os supermercados), não só as de um
+// serviço em concreto. A "Posição", ao contrário das caixas, já vem
+// associada à própria linha artigo+serviço no ficheiro de origem — por
+// isso usa-se aqui, tal como no índice de supermercado, em vez da posição
+// de armazém.
+function buildServicoIndex(q) {
+  const idx = new Map();
+  Object.keys(superMap).forEach(cod => {
+    servicosQueBatem(cod, q).forEach(sv => {
+      const key = sv.cod + '|' + sv.nome;
+      if (!idx.has(key)) idx.set(key, { cod: sv.cod, nome: sv.nome, artigos: [] });
+      idx.get(key).artigos.push({
+        cod,
+        nome: getNome(cod),
+        caixas: superMap[cod].caixas || [],
+        posicaoTexto: sv.posicao || '',
+        area: sv.area || '',
+        grupo: sv.grupo || ''
+      });
+    });
+  });
+  return [...idx.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// ── Ordenação do índice (Supermercados / Serviços) ──────
+// Aplica-se às tabelas do índice (buildSupermercadoIndex / buildServicoIndex).
+// Estado global e partilhado por todas as fichas do índice — ordenar por
+// Código, Artigo ou Posição afeta todas ao mesmo tempo. Clicar outra vez no
+// mesmo cabeçalho inverte a direção; clicar num cabeçalho diferente muda o
+// campo e volta a começar em ascendente.
+let indexSortField = 'artigo'; // 'cod' | 'artigo' | 'posicao'
+let indexSortDir   = 'asc';    // 'asc' | 'desc'
+
+function compareIndexArtigos(a, b) {
+  let va, vb;
+  if (indexSortField === 'cod')            { va = a.cod;           vb = b.cod; }
+  else if (indexSortField === 'posicao')   { va = a.posicaoTexto;  vb = b.posicaoTexto; }
+  else /* 'artigo' */                      { va = a.nome;          vb = b.nome; }
+  const cmp = String(va || '').localeCompare(String(vb || ''), 'pt', { numeric: true, sensitivity: 'base' });
+  return indexSortDir === 'asc' ? cmp : -cmp;
+}
+
+function sortArrowHtml(field) {
+  if (indexSortField !== field) return '';
+  return indexSortDir === 'asc' ? ' \u25B2' : ' \u25BC';
+}
+
+function setIndexSort(field) {
+  if (indexSortField === field) {
+    indexSortDir = indexSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    indexSortField = field;
+    indexSortDir = 'asc';
+  }
+  doSearch();
+}
+
+// Filtro genérico por dimensão (Local ou Área) nas fichas do índice: mostra
+// só as linhas da tabela cujo valor da dimensão corresponde ao botão
+// clicado ("Todas" remove o filtro dessa dimensão). Se as duas dimensões
+// tiverem filtro ativo ao mesmo tempo, uma linha só fica visível se bater
+// com AMBAS. Feito por manipulação direta do DOM (sem re-pesquisar) para
+// não perder a posição de scroll nem recalcular o índice inteiro só para
+// filtrar uma ficha.
+function toggleFiltro(btn) {
+  const card = btn.closest('.artigo-card');
+  const dim  = btn.dataset.dim; // 'grupo' ou 'area'
+  card.querySelectorAll(`.filtro-btn[data-dim="${dim}"]`).forEach(b => b.classList.toggle('active', b === btn));
+  aplicarFiltros(card);
+}
+
+function aplicarFiltros(card) {
+  const dims = [...new Set([...card.querySelectorAll('.filtro-btn')].map(b => b.dataset.dim))];
+  const ativos = {};
+  dims.forEach(dim => {
+    const btnAtivo = card.querySelector(`.filtro-btn[data-dim="${dim}"].active`);
+    ativos[dim] = btnAtivo ? btnAtivo.dataset.val : '';
+  });
+  const rows = card.querySelectorAll('table.cx tbody tr');
+  let visiveis = 0;
+  rows.forEach(tr => {
+    const bate = dims.every(dim => !ativos[dim] || tr.dataset[dim] === ativos[dim]);
+    tr.style.display = bate ? '' : 'none';
+    if (bate) visiveis++;
+  });
+  const countEl = card.querySelector('.sec-count');
+  if (countEl) {
+    const total = countEl.dataset.total;
+    const algumFiltroAtivo = dims.some(dim => ativos[dim]);
+    countEl.textContent = algumFiltroAtivo ? `${visiveis} de ${total} artigo(s)` : `${total} artigo(s)`;
+  }
 }
 
 // Debounce: espera que a pessoa pare de escrever por 150ms antes de
@@ -600,6 +795,7 @@ function matchSuperServico(cod, q) {
 let searchTimer = null;
 function onSearchInput() {
   clearTimeout(searchTimer);
+  selectedIndexKey = null;
   searchTimer = setTimeout(doSearch, 150);
 }
 
@@ -622,28 +818,112 @@ function doSearch() {
     return;
   }
 
-  const matchFn  = searchMode === 'artigo' ? matchArtigo : matchSuperServico;
-  const allCods = [...new Set([...Object.keys(superMap), ...Object.keys(armMap)])];
-  const found   = allCods.filter(cod => matchFn(cod, q));
-
   document.getElementById('results').style.display = 'block';
-  document.getElementById('results-header').textContent = found.length
-    ? found.length + ' resultado(s) encontrado(s)' + (found.length > 30 ? ' — mostrando os primeiros 30' : '')
-    : '';
-
   const container = document.getElementById('cards-container');
-  if (!found.length) {
-    container.innerHTML = `<div class="empty-state">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-      <p>Nenhum artigo encontrado para "<strong>${escHtml(qRaw)}</strong>"</p>
-    </div>`;
+
+  if (searchMode === 'artigo') {
+    const allCods = [...new Set([...Object.keys(superMap), ...Object.keys(armMap)])];
+    const found   = allCods.filter(cod => matchArtigo(cod, q));
+
+    document.getElementById('results-header').textContent = found.length
+      ? found.length + ' resultado(s) encontrado(s)' + (found.length > 30 ? ' — mostrando os primeiros 30' : '')
+      : '';
+
+    if (!found.length) {
+      container.innerHTML = emptyStateHtml(qRaw, 'artigo');
+      return;
+    }
+    container.innerHTML = found.slice(0, 30).map(renderCard).join('');
     return;
   }
-  container.innerHTML = found.slice(0, 30).map(renderCard).join('');
+
+  // Modo "Supermercados / Serviços": em vez de despejar logo todas as
+  // fichas encontradas, mostra-se um badge por supermercado/serviço
+  // encontrado — a pessoa escolhe qual quer ver, e só essa ficha (com o
+  // índice de artigos) é desenhada abaixo. Mesma lógica de "clicar para
+  // escolher, com estado ativo" já usada nos badges de Área da ficha de
+  // Serviço.
+  const gruposSuper   = buildSupermercadoIndex(q).map(g => ({ tipo: 'supermercado', dados: g }));
+  const gruposServico = buildServicoIndex(q).map(g => ({ tipo: 'servico', dados: g }));
+  const grupos = [...gruposSuper, ...gruposServico];
+
+  document.getElementById('results-header').textContent = grupos.length
+    ? grupos.length + ' resultado(s) encontrado(s)' + (grupos.length > 30 ? ' — mostrando os primeiros 30' : '')
+    : '';
+
+  if (!grupos.length) {
+    selectedIndexKey = null;
+    container.innerHTML = emptyStateHtml(qRaw, 'supermercado ou serviço');
+    return;
+  }
+
+  const gruposMostrados = grupos.slice(0, 30);
+  const picker = renderIndexPicker(gruposMostrados);
+
+  const escolhido = gruposMostrados.find(g => grupoKey(g) === selectedIndexKey);
+  const detalhe = escolhido
+    ? renderSuperGroupCard(escolhido.dados, escolhido.tipo)
+    : `<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <p>Escolhe um supermercado ou serviço acima para ver os artigos.</p>
+      </div>`;
+
+  container.innerHTML = picker + detalhe;
+}
+
+// Identificador único de um grupo do índice (supermercado ou serviço),
+// usado para saber qual badge está escolhido e para o marcar como "active".
+function grupoKey(g) {
+  return g.tipo + '|' + g.dados.cod + '|' + g.dados.nome;
+}
+
+// Ficha com um badge por supermercado/serviço encontrado. Reaproveita a
+// mesma classe .area-btn dos botões de filtro por Área, para manter a
+// mesma linguagem visual de "escolher uma opção".
+function renderIndexPicker(grupos) {
+  const porTipo = { supermercado: [], servico: [] };
+  grupos.forEach(g => porTipo[g.tipo].push(g));
+
+  const secao = (tipo, label) => {
+    const lista = porTipo[tipo];
+    if (!lista.length) return '';
+    const badges = lista.map(g => {
+      const key = grupoKey(g);
+      const ativo = key === selectedIndexKey ? ' active' : '';
+      return `<button type="button" class="area-btn${ativo}" data-key="${escHtml(key)}" onclick="selectGrupoIndex(this.dataset.key)">${escHtml(g.dados.nome)}</button>`;
+    }).join('');
+    return `<div class="super-group">
+      <div class="super-group-label">${escHtml(label)} (${lista.length})</div>
+      <div class="area-filter-row">${badges}</div>
+    </div>`;
+  };
+
+  return `<div class="artigo-card">
+    <div class="artigo-card-body">
+      ${secao('supermercado', 'Supermercados')}
+      ${secao('servico', 'Serviços')}
+    </div>
+  </div>`;
+}
+
+// Clique num badge do picker: escolhe esse supermercado/serviço e
+// redesenha (a pesquisa em si não muda, só a ficha escolhida).
+function selectGrupoIndex(key) {
+  selectedIndexKey = key;
+  doSearch();
+}
+
+// Mensagem de "sem resultados", reutilizada pelos dois modos de pesquisa.
+function emptyStateHtml(qRaw, tipoLabel) {
+  return `<div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    <p>Nenhum ${escHtml(tipoLabel)} encontrado para "<strong>${escHtml(qRaw)}</strong>"</p>
+  </div>`;
 }
 
 function clearSearch() {
   clearTimeout(searchTimer);
+  selectedIndexKey = null;
   document.getElementById(activeSearchInputId()).value = '';
   document.getElementById('btn-clear').style.display = 'none';
   document.getElementById('results').style.display = 'none';
@@ -653,6 +933,82 @@ function clearSearch() {
 // ── Render ─────────────────────────────────────────────
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Decide, para uma dimensão (Local/grupo ou Área), se se mostra um badge
+// fixo (1 só valor distinto entre os artigos da ficha — nada para filtrar)
+// ou botões de filtro ("Todas" + um por valor, quando há 2 ou mais
+// distintos). Usada da mesma forma nos índices de Supermercado e Serviço,
+// para os dois terem sempre os mesmos badges.
+function dimensaoBadgeOuFiltro(dim, label, artigos) {
+  const valores = [...new Set(artigos.map(a => a[dim]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
+  if (!valores.length) return { badge: '', filtro: '' };
+  if (valores.length === 1) return { badge: ` <span class="super-tag">${escHtml(valores[0])}</span>`, filtro: '' };
+  const botoes = [`<button type="button" class="area-btn filtro-btn active" data-dim="${dim}" data-val="" onclick="toggleFiltro(this)">Todas</button>`]
+    .concat(valores.map(v => `<button type="button" class="area-btn filtro-btn" data-dim="${dim}" data-val="${escHtml(v)}" onclick="toggleFiltro(this)">${escHtml(v)}</button>`))
+    .join('');
+  return { badge: '', filtro: `<div class="area-filter-row" title="${escHtml(label)}">${botoes}</div>` };
+}
+
+// Ficha de índice para o modo "Supermercados / Serviços": uma ficha por
+// supermercado (ou serviço) encontrado, com uma linha por artigo — em vez
+// da ficha de artigo usada no modo "Artigos" (renderCard, abaixo).
+function renderSuperGroupCard(entry, tipo) {
+  const isSuper = tipo === 'supermercado';
+  const labelTipo = isSuper ? 'Supermercado' : 'Serviço';
+  const posLabel = isSuper ? 'Posição no supermercado' : 'Posição no serviço';
+
+  // Local (HPH/ACES) e Área tratados da mesma forma nos dois índices: se
+  // os artigos da ficha só têm um valor distinto, mostra-se como badge
+  // fixo junto ao nome (não há nada para filtrar); se há mais que um,
+  // mostra-se como botões de filtro ("Todas" + um por valor).
+  const grupoInfo = dimensaoBadgeOuFiltro('grupo', 'Local', entry.artigos);
+  const areaInfo  = dimensaoBadgeOuFiltro('area', 'Área', entry.artigos);
+
+  const linhas = entry.artigos
+    .slice()
+    .sort(compareIndexArtigos)
+    .map(art => {
+      const caixasHtml = art.caixas.length
+        ? art.caixas.slice()
+            .sort((a, b) => a.tipoCx.localeCompare(b.tipoCx, 'pt'))
+            .map(c => `<span class="badge-total" title="${escHtml(c.tipoCx)}">${escHtml(c.tipoCx)}: ${escHtml(c.qtdTotal || 0)}</span>`)
+            .join(' ')
+        : '<span class="no-data">—</span>';
+      const posHtml = art.posicaoTexto
+        ? escHtml(art.posicaoTexto)
+        : '<span class="no-data">—</span>';
+      return `<tr data-area="${escHtml(art.area || '')}" data-grupo="${escHtml(art.grupo || '')}">
+        <td class="mono">${escHtml(art.cod)}</td>
+        <td>${escHtml(art.nome || '—')}</td>
+        <td>${caixasHtml}</td>
+        <td class="muted">${posHtml}</td>
+      </tr>`;
+    }).join('');
+
+  return `<div class="artigo-card">
+    <div class="artigo-card-header">
+      <span class="cod-pill">${escHtml(entry.cod || '—')}</span>
+      <div class="sgc-header-main">
+        <span class="artigo-nome">${escHtml(entry.nome)}${grupoInfo.badge}${areaInfo.badge}</span>
+        ${grupoInfo.filtro}${areaInfo.filtro}
+      </div>
+    </div>
+    <div class="artigo-card-body">
+      <div class="sec-label">${escHtml(labelTipo)} — <span class="sec-count" data-total="${entry.artigos.length}">${entry.artigos.length} artigo(s)</span></div>
+      <div class="cx-wrap">
+        <table class="cx">
+          <thead><tr>
+            <th class="sortable" onclick="setIndexSort('cod')">Código${sortArrowHtml('cod')}</th>
+            <th class="sortable" onclick="setIndexSort('artigo')">Artigo${sortArrowHtml('artigo')}</th>
+            <th>Caixa / Quantidade</th>
+            <th class="sortable" onclick="setIndexSort('posicao')">${escHtml(posLabel)}${sortArrowHtml('posicao')}</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
 }
 
 function renderCard(cod) {
@@ -722,10 +1078,10 @@ function renderCard(cod) {
       </div>`;
   }
 
-  // ── Painel "Informação importante" ──
+  // ── Painel "Informação importante" (Armazém e Posição → Supermercados
+  // com Artigo → Maior total por supermercado) ──
   let infoHTML = '';
-  if (s.supermercados.length || s.caixas.length) {
-    const tipos  = tiposDeCaixa(s.caixas);
+  if (s.supermercados.length || s.caixas.length || a.posicoes.length) {
     const totais = totaisPorSupermercado(s.caixas);
     const maior  = maiorTotalSupermercado(totais);
 
@@ -738,24 +1094,19 @@ function renderCard(cod) {
       .map(g => `${contagemGrupos[g]} ${escHtml(g)}`)
       .join(', ') || '—';
 
-    const listaTipos = tipos.length ? tipos.map(escHtml).join(', ') : '—';
-
     infoHTML = `
       <div>
         <div class="sec-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           Informação importante
         </div>
+        <div class="info-sub-label">Armazém e Posição</div>
+        ${armHTML}
         <div class="info-grid">
           <div class="info-card blue">
             <div class="info-card-title">Supermercados com artigo</div>
             <div class="info-card-num">${s.supermercados.length}</div>
             <div class="info-card-detail">${listaGrupos}</div>
-          </div>
-          <div class="info-card green">
-            <div class="info-card-title">Tipos de caixa</div>
-            <div class="info-card-num">${tipos.length}</div>
-            <div class="info-card-detail">${listaTipos}</div>
           </div>
           <div class="info-card amber">
             <div class="info-card-title">Maior total por supermercado</div>
@@ -774,15 +1125,7 @@ function renderCard(cod) {
     </div>
     <div class="artigo-card-body">
       ${infoHTML}
-      <div>
-        <div class="sec-label">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
-          Armazém e posição
-        </div>
-        ${armHTML}
-      </div>
-      ${cxHTML ? `<hr class="divider">${cxHTML}` : ''}
-      <hr class="divider">
+      ${cxHTML ? `${cxHTML}<hr class="divider">` : ''}
       <div>
         <div class="sec-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
