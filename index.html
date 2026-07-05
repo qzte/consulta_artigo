@@ -2,11 +2,16 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.11.1
+  Consulta de Artigos — v1.12.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.11.1 (atual)
+  v1.12.0 (atual)
+    - change: no painel "Informação importante" da ficha de artigo, o bloco
+      "Armazém e Posição" deixa de estar separado (acima) do grid de
+      cartões — passa a ser o primeiro dos 3 cartões lado a lado, junto de
+      "Supermercados com artigo" e "Maior total por supermercado"
+  v1.11.1
     - fix: trocar entre os botões "Artigos" e "Supermercados / Serviços"
       apagava o texto escrito na caixa de pesquisa (e a seleção feita no
       índice de Supermercados / Serviços). Cada modo passa agora a manter
@@ -145,8 +150,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.11.1</title>
-<meta name="description" content="Consulta de Artigos v1.11.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.12.0</title>
+<meta name="description" content="Consulta de Artigos v1.12.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root {
@@ -251,18 +256,19 @@
   .super-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); margin-bottom: 6px; }
 
   /* INFO PANEL */
-  .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 12px; }
-  .info-sub-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin-bottom: 8px; }
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
   .info-card { border-radius: var(--radius-sm); padding: 12px 14px; }
+  .info-card.neutral { background: var(--surface2); }
   .info-card.blue  { background: var(--blue-bg); }
   .info-card.amber { background: var(--amber-bg); }
   .info-card-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .info-card.neutral .info-card-title { color: var(--text2); }
   .info-card.blue  .info-card-title { color: var(--blue-txt); }
   .info-card.amber .info-card-title { color: var(--amber-txt); }
   .info-card-num { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; margin-bottom: 6px; }
   .info-card-detail { font-size: 12px; color: var(--text2); line-height: 1.5; word-break: break-word; }
 
-  @media (max-width: 600px) {
+  @media (max-width: 900px) {
     .info-grid { grid-template-columns: 1fr; }
   }
 
@@ -313,7 +319,7 @@
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.11.1</span>
+  <span class="version">v1.12.0</span>
 </header>
 
 <div class="container">
@@ -1100,9 +1106,11 @@ function renderCard(cod) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           Informação importante
         </div>
-        <div class="info-sub-label">Armazém e Posição</div>
-        ${armHTML}
         <div class="info-grid">
+          <div class="info-card neutral">
+            <div class="info-card-title">Armazém e Posição</div>
+            ${armHTML}
+          </div>
           <div class="info-card blue">
             <div class="info-card-title">Supermercados com artigo</div>
             <div class="info-card-num">${s.supermercados.length}</div>
