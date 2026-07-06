@@ -6,7 +6,15 @@
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.14.0 (atual)
+  v1.15.0 (atual)
+    - change: scan por foto passa a ser scan "ao vivo" — em vez de tirar
+      uma única foto, abre a câmara dentro da própria página (getUserMedia)
+      e tenta ler o código continuamente (~a cada 1,5s), mostrando o
+      candidato encontrado (mínimo 4 dígitos, para não mostrar ruído) com
+      botões "Usar este código" / "Continuar a tentar"; só preenche a
+      pesquisa quando a pessoa confirma. Substitui o botão anterior que
+      abria a app de câmara nativa do telemóvel para tirar 1 foto
+  v1.14.0
     - feat: no modo "Artigos", novo botão de câmara junto à caixa de
       pesquisa — tira uma foto a uma etiqueta e lê o código do artigo por
       OCR (Tesseract.js), preenchendo a caixa de pesquisa com os dígitos
@@ -170,8 +178,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.14.0</title>
-<meta name="description" content="Consulta de Artigos v1.14.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.15.0</title>
+<meta name="description" content="Consulta de Artigos v1.15.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -251,14 +259,26 @@
   #btn-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; display: none; border-radius: 99px; }
   #btn-clear:hover { color: var(--text); background: var(--surface2); }
 
-  /* SCAN (OCR) */
+  /* SCAN (OCR ao vivo) */
   #search-input-artigo { padding-right: 76px; }
   #btn-scan { position: absolute; right: 40px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; border-radius: 99px; display: none; }
   #btn-scan:hover { color: var(--blue-txt); background: var(--surface2); }
   #btn-scan:disabled { cursor: not-allowed; opacity: 0.5; }
-  #btn-scan.loading svg { animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
   .ocr-msg { font-size: 12.5px; color: var(--amber-txt); background: var(--amber-bg); border-radius: var(--radius-sm); padding: 8px 12px; margin: -10px 0 1.5rem; display: none; }
+
+  .scan-overlay { position: fixed; inset: 0; background: rgba(10,10,8,0.94); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+  .scan-overlay.open { display: flex; }
+  .scan-video-wrap { position: relative; width: 100%; max-width: 440px; aspect-ratio: 3 / 4; background: #000; border-radius: var(--radius); overflow: hidden; }
+  #scan-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scan-frame-hint { position: absolute; inset: 14% 10%; border: 2px dashed rgba(255,255,255,0.55); border-radius: 8px; pointer-events: none; }
+  .scan-close { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.45); border: none; color: #fff; cursor: pointer; padding: 6px; border-radius: 99px; line-height: 0; }
+  .scan-status { color: #f2f1ec; font-size: 13px; margin-top: 16px; text-align: center; min-height: 18px; }
+  .scan-candidate { margin-top: 14px; display: none; flex-direction: column; align-items: center; gap: 10px; }
+  .scan-candidate-num { font-family: 'Cascadia Code', 'Courier New', monospace; font-size: 24px; font-weight: 700; color: #fff; background: rgba(255,255,255,0.14); padding: 8px 20px; border-radius: 8px; letter-spacing: 1px; }
+  .scan-actions { display: flex; gap: 10px; }
+  .scan-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 99px; border: none; cursor: pointer; }
+  .scan-btn.primary { background: var(--blue-txt); color: #fff; }
+  .scan-btn.secondary { background: rgba(255,255,255,0.16); color: #fff; }
 
   /* RESULTS */
   #results { display: none; }
@@ -356,7 +376,7 @@
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.14.0</span>
+  <span class="version">v1.15.0</span>
 </header>
 
 <div class="container">
@@ -401,19 +421,39 @@
     <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
     <input type="text" id="search-input-artigo" placeholder="Pesquisar por código ou descrição do artigo…" oninput="onSearchInput()" disabled>
     <input type="text" id="search-input-super" placeholder="Pesquisar por supermercado ou serviço (código ou descrição)…" oninput="onSearchInput()" disabled style="display:none">
-    <button id="btn-scan" onclick="document.getElementById('f-scan').click()" title="Ler código por foto (OCR)" disabled>
+    <button id="btn-scan" onclick="abrirScanAoVivo()" title="Ler código pela câmara" disabled>
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
     </button>
-    <input type="file" id="f-scan" accept="image/*" capture="environment" style="display:none" onchange="handleScanFile(this)">
     <button id="btn-clear" onclick="clearSearch()" title="Limpar pesquisa">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
   <div class="ocr-msg" id="ocr-msg"></div>
 
+  <!-- SCAN AO VIVO (overlay) -->
+  <div class="scan-overlay" id="scan-overlay">
+    <div class="scan-video-wrap">
+      <video id="scan-video" autoplay playsinline muted></video>
+      <div class="scan-frame-hint"></div>
+      <button class="scan-close" onclick="fecharScanAoVivo()" title="Fechar câmara">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="scan-status" id="scan-status">A abrir câmara…</div>
+    <div class="scan-candidate" id="scan-candidate">
+      <span class="scan-candidate-num" id="scan-candidate-num"></span>
+      <div class="scan-actions">
+        <button type="button" class="scan-btn secondary" onclick="continuarScan()">Continuar a tentar</button>
+        <button type="button" class="scan-btn primary" onclick="usarCandidato()">Usar este código</button>
+      </div>
+    </div>
+  </div>
+  <canvas id="scan-canvas" style="display:none"></canvas>
+
   <!-- RESULTS -->
   <div id="results">
     <div class="results-header" id="results-header"></div>
+
     <div id="cards-container"></div>
   </div>
 
@@ -991,10 +1031,10 @@ function clearSearch() {
   document.getElementById(activeSearchInputId()).focus();
 }
 
-// ── Scan por foto (OCR) ──────────────────────────────────
-// Lê o código de artigo a partir de uma foto de etiqueta (Tesseract.js).
-// Só preenche a caixa de pesquisa com os dígitos lidos — nunca pesquisa
-// sozinho, para a pessoa poder rever/corrigir antes.
+// ── Scan ao vivo (OCR) ───────────────────────────────────
+// Lê o código de artigo apontando a câmara diretamente à etiqueta, em vez
+// de tirar uma única foto. Mostra o candidato encontrado e só preenche a
+// caixa de pesquisa quando a pessoa confirma — nunca pesquisa sozinho.
 
 // Letras que o OCR troca frequentemente por dígitos parecidos, aplicado
 // antes de descartar tudo o que não é dígito. Testado isoladamente em
@@ -1004,6 +1044,13 @@ const OCR_CONFUSOES = { O: '0', o: '0', I: '1', l: '1', S: '5', s: '5', B: '8' }
 function extrairDigitos(textoOcr) {
   const corrigido = String(textoOcr || '').replace(/[OoIlSsB]/g, c => OCR_CONFUSOES[c]);
   return corrigido.replace(/\D/g, '');
+}
+
+// Só aceita um candidato com dígitos suficientes (por omissão, 4), para
+// não mostrar "ruído" de 1 número solto lido por engano.
+function digitosValidos(textoOcr, minDigitos = 4) {
+  const digitos = extrairDigitos(textoOcr);
+  return digitos.length >= minDigitos ? digitos : '';
 }
 
 function showOcrMsg(texto) {
@@ -1016,33 +1063,108 @@ function hideOcrMsg() {
   document.getElementById('ocr-msg').style.display = 'none';
 }
 
-async function handleScanFile(inputEl) {
-  const file = inputEl.files[0];
-  inputEl.value = ''; // permite voltar a escolher a mesma foto, se precisar
-  if (!file) return;
+// Estado do scan ao vivo: a stream da câmara, se o ciclo de leitura está
+// ativo (para conseguir pará-lo ao fechar/confirmar) e o último candidato
+// válido encontrado (para "Usar este código" saber o que preencher).
+let scanStream = null;
+let scanLoopAtivo = false;
+let scanCandidatoAtual = '';
 
+// Tempo de espera entre tentativas de leitura. O Tesseract.js demora
+// tipicamente 1 a 3 segundos por tentativa num telemóvel; este atraso é
+// A PARTIR do fim da tentativa anterior (nunca em paralelo), para não
+// sobrecarregar o aparelho com pedidos de OCR acumulados.
+const SCAN_INTERVALO_MS = 1500;
+
+async function abrirScanAoVivo() {
   hideOcrMsg();
-  const btn = document.getElementById('btn-scan');
-  btn.disabled = true;
-  btn.classList.add('loading');
+  const overlay = document.getElementById('scan-overlay');
+  document.getElementById('scan-candidate').style.display = 'none';
+  scanCandidatoAtual = '';
+  document.getElementById('scan-status').textContent = 'A abrir câmara…';
+  overlay.classList.add('open');
 
   try {
-    const { data: { text } } = await Tesseract.recognize(file, 'eng');
-    const digitos = extrairDigitos(text);
-    if (!digitos) {
-      showOcrMsg('Não foi possível ler nenhum número na foto. Tenta tirar a foto mais perto e com boa luz.');
-    } else {
-      const inp = document.getElementById('search-input-artigo');
-      inp.value = digitos;
-      inp.focus();
-      inp.select();
-      document.getElementById('btn-clear').style.display = 'inline-flex';
-    }
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
   } catch (err) {
-    showOcrMsg('Não foi possível processar a foto. Tenta novamente.');
-  } finally {
-    btn.disabled = !(superLoaded && armLoaded);
-    btn.classList.remove('loading');
+    overlay.classList.remove('open');
+    showOcrMsg('Não foi possível aceder à câmara. Verifica as permissões do browser e tenta novamente.');
+    return;
+  }
+
+  const video = document.getElementById('scan-video');
+  video.srcObject = scanStream;
+  try { await video.play(); } catch (err) { /* alguns browsers já dão play automático */ }
+
+  document.getElementById('scan-status').textContent = 'A tentar ler o código…';
+  scanLoopAtivo = true;
+  loopScan();
+}
+
+// Fecha a câmara e para o ciclo de leitura — usado tanto ao cancelar como
+// depois de confirmar um candidato.
+function fecharScanAoVivo() {
+  scanLoopAtivo = false;
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+  document.getElementById('scan-overlay').classList.remove('open');
+}
+
+// "Continuar a tentar": descarta o candidato mostrado e volta ao estado de
+// leitura — o ciclo em si nunca parou, só estava à espera de decisão.
+function continuarScan() {
+  document.getElementById('scan-candidate').style.display = 'none';
+  scanCandidatoAtual = '';
+  document.getElementById('scan-status').textContent = 'A tentar ler o código…';
+}
+
+// "Usar este código": fecha a câmara e preenche a pesquisa com o
+// candidato atual — a pessoa ainda revê/corrige antes de pesquisar.
+function usarCandidato() {
+  const digitos = scanCandidatoAtual;
+  fecharScanAoVivo();
+  if (!digitos) return;
+  const inp = document.getElementById('search-input-artigo');
+  inp.value = digitos;
+  inp.focus();
+  inp.select();
+  document.getElementById('btn-clear').style.display = 'inline-flex';
+}
+
+// Ciclo de leitura: tira um fotograma do vídeo, tenta OCR, e — se ativo —
+// espera SCAN_INTERVALO_MS antes de repetir. Continua indefinidamente até
+// scanLoopAtivo passar a false (fechar ou confirmar). Encontrar um
+// candidato não para o ciclo — só atualiza o que está mostrado, para
+// aceitar uma leitura melhor se a pessoa ainda não tiver confirmado.
+async function loopScan() {
+  const video  = document.getElementById('scan-video');
+  const canvas = document.getElementById('scan-canvas');
+
+  while (scanLoopAtivo) {
+    if (video.videoWidth) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      try {
+        const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
+        if (!scanLoopAtivo) break; // fechado/confirmado enquanto o OCR corria
+        const digitos = digitosValidos(text);
+        if (digitos) {
+          scanCandidatoAtual = digitos;
+          document.getElementById('scan-candidate-num').textContent = digitos;
+          document.getElementById('scan-candidate').style.display = 'flex';
+          document.getElementById('scan-status').textContent = 'Código encontrado:';
+        }
+      } catch (err) {
+        // Falha pontual de leitura (ex: fotograma desfocado) — ignora-se e
+        // tenta-se outra vez no próximo ciclo, sem interromper o scan.
+      }
+    }
+    if (!scanLoopAtivo) break;
+    await new Promise(resolve => setTimeout(resolve, SCAN_INTERVALO_MS));
   }
 }
 
