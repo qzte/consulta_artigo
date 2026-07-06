@@ -1,4 +1,4 @@
-// Service Worker — Consulta de Artigos
+// Service Worker — Consulta de Artigos v1.14.0
 //
 // Função: guardar uma cópia local (cache) do ficheiro HTML, dos ícones,
 // do manifest e do script da biblioteca xlsx, para a app continuar a abrir
@@ -14,16 +14,17 @@
 //   ser atualizado também, senão a app offline abre um ficheiro que já
 //   não existe.
 
-const CACHE_NAME = 'consulta-artigos';
+const CACHE_NAME = 'consulta-artigos-v1.14.0';
 
 const PRECACHE_URLS = [
-  './consulta_artigos.html',
+  './consulta_artigos_v1.14.0.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
   './icon-192-maskable.png',
   './icon-512-maskable.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'
 ];
 
 // Instalação: descarrega e guarda todos os ficheiros da lista acima.
@@ -63,7 +64,7 @@ async function handleNavigation(request) {
     return resposta;
   } catch (err) {
     const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match('./consulta_artigos_v1.13.0.html');
+    const cached = await cache.match('./consulta_artigos_v1.14.0.html');
     return cached || Response.error();
   }
 }
@@ -71,6 +72,10 @@ async function handleNavigation(request) {
 // Outros pedidos (ícones, manifest, script da biblioteca xlsx): usa a
 // cache primeiro (mais rápido, funciona offline), e só vai à rede se ainda
 // não estiver guardado nada — guardando depois o resultado para a próxima.
+// Nota: isto também apanha, sem precisar de estar na lista PRECACHE_URLS,
+// os ficheiros que o Tesseract.js pede em runtime (o "worker" e os dados
+// de idioma "eng.traineddata") — ficam guardados automaticamente depois da
+// primeira vez que o scan por foto for usado com internet.
 async function handleAsset(request) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
