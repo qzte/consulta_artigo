@@ -194,7 +194,7 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.17.0</title>
+<title>Consulta de Artigos — v1.17.0 (debug)</title>
 <meta name="description" content="Consulta de Artigos v1.17.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
@@ -290,6 +290,8 @@
   .scan-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; }
   .scan-close { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.45); border: none; color: #fff; cursor: pointer; padding: 6px; border-radius: 99px; line-height: 0; }
   .scan-status { color: #f2f1ec; font-size: 13px; margin-top: 16px; text-align: center; min-height: 18px; }
+  .scan-debug-label { color: #f2f1ec; opacity: 0.7; font-size: 11px; margin-top: 10px; }
+  .scan-debug-preview { width: 220px; max-width: 70vw; height: auto; margin-top: 6px; border: 1px solid rgba(255,255,255,0.4); border-radius: 6px; background: #333; }
   .scan-candidate { margin-top: 14px; display: none; flex-direction: column; align-items: center; gap: 10px; }
   .scan-candidate-num { font-family: 'Cascadia Code', 'Courier New', monospace; font-size: 24px; font-weight: 700; color: #fff; background: rgba(255,255,255,0.14); padding: 8px 20px; border-radius: 8px; letter-spacing: 1px; }
   .scan-actions { display: flex; gap: 10px; }
@@ -393,7 +395,7 @@
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.17.0</span>
+  <span class="version">v1.17.0 debug</span>
 </header>
 
 <div class="container">
@@ -464,6 +466,8 @@
       </button>
     </div>
     <div class="scan-status" id="scan-status">A abrir câmara…</div>
+    <div class="scan-debug-label">Pré-visualização — é isto que o OCR vê:</div>
+    <canvas id="scan-canvas" class="scan-debug-preview"></canvas>
     <div class="scan-candidate" id="scan-candidate">
       <span class="scan-candidate-num" id="scan-candidate-num"></span>
       <div class="scan-actions">
@@ -472,7 +476,6 @@
       </div>
     </div>
   </div>
-  <canvas id="scan-canvas" style="display:none"></canvas>
 
   <!-- RESULTS -->
   <div id="results">
