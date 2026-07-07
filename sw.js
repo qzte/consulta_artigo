@@ -1,4 +1,4 @@
-// Service Worker — Consulta de Artigos v1.17.1
+// Service Worker — Consulta de Artigos v1.18.1
 //
 // Função: guardar uma cópia local (cache) do ficheiro HTML, dos ícones,
 // do manifest e do script da biblioteca xlsx, para a app continuar a abrir
@@ -6,7 +6,7 @@
 //
 // Importante para quem for atualizar isto no futuro:
 // - O nome da CACHE_NAME inclui a versão. Sempre que se sobe uma versão
-//   nova da app, muda-se este nome (ex: 'consulta-artigos-v1.17.1') — isso
+//   nova da app, muda-se este nome (ex: 'consulta-artigos-v1.18.1') — isso
 //   faz o Service Worker apagar a cache antiga e guardar tudo outra vez.
 //   Esquecer este passo faz o utilizador ficar preso numa versão antiga.
 // - PRECACHE_URLS tem de incluir o nome exato do ficheiro HTML atual. Se o
@@ -14,17 +14,18 @@
 //   ser atualizado também, senão a app offline abre um ficheiro que já
 //   não existe.
 
-const CACHE_NAME = 'consulta-artigos-v1.17.1';
+const CACHE_NAME = 'consulta-artigos-v1.18.1';
 
 const PRECACHE_URLS = [
-  './consulta_artigos_v1.17.1.html',
+  './consulta_artigos_v1.18.1.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
   './icon-192-maskable.png',
   './icon-512-maskable.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'
+  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+  'https://unpkg.com/@zxing/browser@latest'
 ];
 
 // Instalação: descarrega e guarda todos os ficheiros da lista acima.
@@ -64,7 +65,7 @@ async function handleNavigation(request) {
     return resposta;
   } catch (err) {
     const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match('./consulta_artigos_v1.17.1.html');
+    const cached = await cache.match('./consulta_artigos_v1.18.1.html');
     return cached || Response.error();
   }
 }
