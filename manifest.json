@@ -2,7 +2,7 @@
   "name": "Consulta de Artigos",
   "short_name": "Artigos",
   "description": "Consulta de armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.",
-  "start_url": "./consulta_artigos_v1.18.1.html",
+  "start_url": "./consulta_artigos_v1.18.2.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
