@@ -1,18 +1,25 @@
 {
-  "name": "Consulta de Artigos",
-  "short_name": "Artigos",
-  "description": "Consulta de armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.",
-  "start_url": "./consulta_artigos_v1.22.0.html",
+  "name": "Sistema de Inventário",
+  "short_name": "Inventário",
+  "description": "Gestão de inventário offline — v29.2.0",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "orientation": "any",
-  "background_color": "#f5f4f0",
-  "theme_color": "#1a4fa0",
-  "lang": "pt-PT",
+  "background_color": "#f3f4f6",
+  "theme_color": "#111827",
+  "lang": "pt",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icon-192-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
-    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

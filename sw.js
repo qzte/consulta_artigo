@@ -1,104 +1,81 @@
-// Service Worker — Consulta de Artigos v1.22.0
-//
-// Função: guardar uma cópia local (cache) do ficheiro HTML, dos ícones,
-// do manifest e do script da biblioteca xlsx, para a app continuar a abrir
-// e a funcionar mesmo sem internet depois da primeira visita.
-//
-// Importante para quem for atualizar isto no futuro:
-// - O nome da CACHE_NAME inclui a versão. Sempre que se sobe uma versão
-//   nova da app, muda-se este nome (ex: 'consulta-artigos-v1.22.0') — isso
-//   faz o Service Worker apagar a cache antiga e guardar tudo outra vez.
-//   Esquecer este passo faz o utilizador ficar preso numa versão antiga.
-// - PRECACHE_URLS tem de incluir o nome exato do ficheiro HTML atual. Se o
-//   nome do ficheiro mudar (convenção de versionamento), este URL tem de
-//   ser atualizado também, senão a app offline abre um ficheiro que já
-//   não existe.
-// - Nota (v1.22.0): esta cache do Service Worker guarda os FICHEIROS DA
-//   APLICAÇÃO (HTML, ícones, bibliotecas). É diferente e independente do
-//   IndexedDB usado para guardar os DOIS FICHEIROS EXCEL carregados pela
-//   pessoa (T_supermercados / Consumo) — esse é gerido diretamente pelo
-//   HTML (ver "Persistência local (IndexedDB)" no script), não por aqui.
+const CACHE = 'inventario-v29.2.0';
 
-const CACHE_NAME = 'consulta-artigos-v1.22.0';
-
-const PRECACHE_URLS = [
-  './consulta_artigos_v1.22.0.html',
+const APP_SHELL = [
+  './',
+  './index.html',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './icon-192-maskable.png',
-  './icon-512-maskable.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
-  'https://unpkg.com/@zxing/browser@latest'
 ];
 
-// Instalação: descarrega e guarda todos os ficheiros da lista acima.
-// skipWaiting() faz esta versão nova do Service Worker passar a ativa
-// imediatamente, sem esperar que todas as abas antigas sejam fechadas.
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+const CDN_ASSETS = [
+  'https://unpkg.com/react@18/umd/react.production.min.js',
+  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
+  'https://unpkg.com/@babel/standalone/babel.min.js',
+  'https://cdn.tailwindcss.com',
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
+  'https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js',
+  'https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap',
+];
+
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(cache =>
+      Promise.allSettled(
+        [...APP_SHELL, ...CDN_ASSETS].map(url =>
+          fetch(url, { mode: url.startsWith('http') ? 'cors' : 'same-origin' })
+            .then(r => { if (r.ok) cache.put(url, r); })
+            .catch(() => {})
+        )
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
-// Ativação: apaga caches de versões antigas (nomes diferentes de
-// CACHE_NAME) para não acumular ficheiros desatualizados no dispositivo.
-// clients.claim() faz o Service Worker passar a controlar já as páginas
-// abertas, sem precisar de um refresh manual.
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys()
-      .then(nomes => Promise.all(
-        nomes.filter(nome => nome !== CACHE_NAME).map(nome => caches.delete(nome))
-      ))
-      .then(() => self.clients.claim())
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
+    ).then(() => self.clients.claim())
   );
 });
 
-// Pedidos de navegação (abrir a página em si): tenta sempre a rede primeiro,
-// para quem está online ver logo a versão mais recente; se não houver rede,
-// usa a cópia guardada em cache. Isto evita ficar preso numa versão antiga
-// da página enquanto houver internet disponível.
-async function handleNavigation(request) {
-  try {
-    const resposta = await fetch(request);
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, resposta.clone());
-    return resposta;
-  } catch (err) {
-    const cache = await caches.open(CACHE_NAME);
-    const cached = await cache.match('./consulta_artigos_v1.22.0.html');
-    return cached || Response.error();
-  }
-}
+self.addEventListener('fetch', e => {
+  const url = e.request.url;
+  const isCDN = CDN_ASSETS.some(a => url.startsWith(a.split('?')[0]));
 
-// Outros pedidos (ícones, manifest, script da biblioteca xlsx): usa a
-// cache primeiro (mais rápido, funciona offline), e só vai à rede se ainda
-// não estiver guardado nada — guardando depois o resultado para a próxima.
-// Nota: isto também apanha, sem precisar de estar na lista PRECACHE_URLS,
-// os ficheiros que o Tesseract.js pede em runtime (o "worker" e os dados
-// de idioma "eng.traineddata") — ficam guardados automaticamente depois da
-// primeira vez que o scan por foto for usado com internet.
-async function handleAsset(request) {
-  const cache = await caches.open(CACHE_NAME);
-  const cached = await cache.match(request);
-  if (cached) return cached;
-  try {
-    const resposta = await fetch(request);
-    cache.put(request, resposta.clone());
-    return resposta;
-  } catch (err) {
-    return Response.error();
+  // CDN: cache-first, refresh cache in background on success
+  if (isCDN) {
+    e.respondWith(
+      caches.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request).then(r => {
+          if (r.ok) { const clone = r.clone(); caches.open(CACHE).then(c => c.put(e.request, clone)); }
+          return r;
+        }).catch(() => new Response('', { status: 503 }));
+      })
+    );
+    return;
   }
-}
 
-self.addEventListener('fetch', event => {
-  if (event.request.mode === 'navigate') {
-    event.respondWith(handleNavigation(event.request));
-  } else {
-    event.respondWith(handleAsset(event.request));
+  // Navegação: network-first, cai para cache/index.html offline
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(r => {
+        const clone = r.clone();
+        caches.open(CACHE).then(c => c.put(e.request, clone));
+        return r;
+      }).catch(() =>
+        caches.match(e.request).then(cached => cached || caches.match('./index.html'))
+      )
+    );
+    return;
   }
+
+  // Restantes pedidos same-origin (manifest, ícones): cache-first com fallback à rede
+  e.respondWith(
+    caches.match(e.request).then(cached => cached || fetch(e.request).catch(() => cached))
+  );
 });
