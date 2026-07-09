@@ -39,25 +39,6 @@
     - feat: pesquisa "Artigos" — o badge de cada supermercado (secção
       "Supermercados" da ficha) passa a mostrar também o código do
       supermercado entre parêntesis a seguir ao nome, ex: "Nome (COD123)"
-  v1.18.3
-    - chore: o símbolo genérico de caixa (SVG) junto ao título "Consulta
-      de Artigos", no cabeçalho, passa a ser o novo ícone da app ("Kz"),
-      o mesmo já usado no ícone de instalação/atalho — reutiliza o
-      ficheiro icon-192.png já existente, sem adicionar nenhum ficheiro
-      novo
-  v1.18.2
-    - chore: novo ícone da app (símbolo "Kz" sobre fundo verde), a
-      substituir o ícone anterior — atualizados os 4 ficheiros de ícone
-      (icon-192.png, icon-512.png e as versões "maskable") sem alterar os
-      nomes dos ficheiros
-  v1.18.1
-    - fix: cartão "Caixas por supermercado" mostrava a Quantidade Total do
-      supermercado nesse tipo de caixa (soma de várias caixas), em vez da
-      capacidade de uma única caixa desse tipo. Passa a usar a coluna
-      "Quantidade Caixa" do ficheiro Supermercados, que é o valor correto
-      para "quanto cabe numa caixa deste tipo". A "Quantidade Total"
-      continua a ser usada no cartão "Maior total por supermercado", que é
-      sobre outra coisa (o total do supermercado, não a capacidade da caixa)
   v1.18.0
     - feat: descoberto que as etiquetas têm um código de barras real
       (Code 39) por baixo do texto — o scan ao vivo passa a tentar ler
@@ -65,14 +46,6 @@
       e fiável do que OCR de texto; só se não encontrar nenhum código de
       barras nesse fotograma é que tenta o OCR como reserva. As duas vias
       alimentam a mesma confirmação por 2 leituras seguidas iguais
-  v1.17.1
-    - fix: scan ao vivo não encontrava nenhum código, mesmo com o número
-      bem legível na imagem enviada para o OCR. Causa: a moldura de
-      recorte apanhava quase toda a altura do vídeo — normalmente mais do
-      que só a linha do código (outros textos da etiqueta) — o que
-      confundia o modo "linha única" do motor (v1.17.0), fazendo-o nunca
-      devolver texto nenhum. A moldura passa a ser uma faixa horizontal
-      ("letterbox"), bem mais baixa, para apanhar só a linha do número
   v1.17.0
     - perf: leitura do OCR ao vivo bastante mais precisa e mais rápida —
       (A) o motor passa a estar configurado para só reconhecer dígitos
