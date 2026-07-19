@@ -2,11 +2,20 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.25.0
+  Consulta de Artigos — v1.26.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.25.0 (atual)
+  v1.26.0 (atual)
+    - feat: emissão de etiquetas em lote a partir do índice de
+      supermercado — nova coluna com checkbox (🏷) antes do código de cada
+      artigo nas fichas de supermercado. Marcando um ou mais artigos
+      aparece o botão "Imprimir etiquetas (N)", que gera todas as
+      etiquetas selecionadas (mesmo QR/cor/posição do modo Etiqueta) e
+      imprime-as seguidas numa folha A4. A impressão de uma etiqueta
+      única no modo Etiqueta mantém o rolo 23x80mm. A seleção limpa-se
+      ao mudar de supermercado; fichas de serviço não têm checkboxes.
+  v1.25.0
     - feat: nova aba "Etiqueta" — permite gerar uma etiqueta 23x80mm para um
       artigo num supermercado. Fluxo: escolher supermercado → escolher
       artigo → a etiqueta é desenhada, com botão "Imprimir etiqueta". A
@@ -288,8 +297,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.25.0</title>
-<meta name="description" content="Consulta de Artigos v1.25.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.26.0</title>
+<meta name="description" content="Consulta de Artigos v1.26.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -2822,12 +2831,23 @@ var qrcode = function() {
   .etq-print-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 99px; border: none; background: var(--blue-txt); color: #fff; cursor: pointer; }
   .etq-print-btn:hover { filter: brightness(1.08); }
 
+  /* Seleção em lote de etiquetas no índice de supermercado */
+  .etq-lote-td { width: 28px; text-align: center; }
+  .etq-lote-cb { width: 16px; height: 16px; accent-color: #2e7d32; cursor: pointer; }
+  .etq-lote-bar { display: flex; justify-content: flex-end; margin-top: 10px; }
+  #etq-lote-area { display: none; }
   @media print {
     body * { visibility: hidden; }
     .etiqueta, .etiqueta * { visibility: visible; }
-    .etiqueta { position: absolute; left: 0; top: 0; margin: 0; }
+    /* Impressão de UMA etiqueta (modo Etiqueta): comportamento original. */
+    body:not(.print-lote) .etiqueta { position: absolute; left: 0; top: 0; margin: 0; }
     .etq-print-btn { display: none; }
     @page { size: 80mm 23mm; margin: 0; }
+    /* Impressão em LOTE: várias etiquetas seguidas na mesma folha A4
+       (a regra @page A4 é injetada por imprimirEtiquetasLote, para não
+       afetar a impressão de uma etiqueta única em rolo). */
+    body.print-lote #etq-lote-area { display: flex; flex-direction: column; gap: 3mm; position: absolute; left: 0; top: 0; visibility: visible; }
+    body.print-lote .etiqueta-wrap { display: block; margin: 0; }
   }
 </style>
 </head>
@@ -2838,7 +2858,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.25.0</span>
+  <span class="version">v1.26.0</span>
 </header>
 
 <div class="container">
@@ -3825,6 +3845,64 @@ function imprimirEtiqueta() {
   window.print();
 }
 
+// ── Etiquetas em lote (índice de supermercado) ──────────
+// Estado da seleção: códigos marcados via checkbox na ficha de
+// supermercado, limpos automaticamente quando se muda de supermercado.
+let etqLoteSel = new Set();
+let etqLoteEntryAtual = null;
+let etqLoteKeyAtual = null;
+
+// Marca/desmarca um artigo e atualiza o contador do botão sem redesenhar
+// a ficha toda (para não perder scroll nem filtros).
+function toggleEtqLote(cb) {
+  if (cb.checked) etqLoteSel.add(cb.dataset.cod);
+  else etqLoteSel.delete(cb.dataset.cod);
+  const bar = document.getElementById('etq-lote-bar');
+  if (bar) bar.style.display = etqLoteSel.size ? 'flex' : 'none';
+  const c = document.getElementById('etq-lote-count');
+  if (c) c.textContent = etqLoteSel.size;
+}
+
+// Gera o HTML do lote: reutiliza renderEtiqueta (mesmo QR, cor e posição
+// do par supermercado+artigo) uma vez por código selecionado.
+function renderEtiquetaLote(entry, cods) {
+  const parts = cods.map(cod => {
+    const art = entry.artigos.find(a => a.cod === cod);
+    if (!art) return '';
+    return renderEtiqueta(art.cod, entry.nome, art.posicaoTexto || art.posicao || '');
+  }).join('');
+  return `<div id="etq-lote-area">${parts}</div>`;
+}
+
+// Impressão em lote: injeta a área com as etiquetas + regra @page A4
+// temporária, imprime, e limpa tudo no fim (afterprint, com fallback por
+// timeout) — assim a impressão de UMA etiqueta continua a sair em rolo
+// 23x80mm como antes.
+function imprimirEtiquetasLote() {
+  if (!etqLoteEntryAtual || !etqLoteSel.size) return;
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderEtiquetaLote(etqLoteEntryAtual, [...etqLoteSel]);
+  const area = tmp.firstElementChild;
+  document.body.appendChild(area);
+  document.body.classList.add('print-lote');
+  const st = document.createElement('style');
+  st.id = 'etq-lote-page';
+  st.textContent = '@media print { @page { size: A4; margin: 10mm; } }';
+  document.head.appendChild(st);
+  let limpo = false;
+  const limpar = () => {
+    if (limpo) return;
+    limpo = true;
+    area.remove();
+    st.remove();
+    document.body.classList.remove('print-lote');
+    window.removeEventListener('afterprint', limpar);
+  };
+  window.addEventListener('afterprint', limpar);
+  window.print();
+  setTimeout(limpar, 1000);
+}
+
 // Faz scroll até à zona de resultados — usado pelos dois saltos recíprocos
 // (badge de supermercado → índice; código de artigo no índice → ficha),
 // para a pessoa ver logo o resultado sem ter de procurar no ecrã.
@@ -4217,6 +4295,15 @@ function renderSuperGroupCard(entry, tipo) {
   const grupoInfo = dimensaoBadgeOuFiltro('grupo', 'Local', entry.artigos);
   const areaInfo  = dimensaoBadgeOuFiltro('area', 'Área', entry.artigos);
 
+  // Seleção em lote de etiquetas: só nas fichas de SUPERMERCADO (a
+  // etiqueta precisa do par supermercado+posição; serviços ficam de fora).
+  // Ao mudar de supermercado, a seleção anterior é limpa.
+  if (isSuper) {
+    const key = (entry.cod || '') + '|' + entry.nome;
+    if (key !== etqLoteKeyAtual) { etqLoteKeyAtual = key; etqLoteSel = new Set(); }
+    etqLoteEntryAtual = entry;
+  }
+
   const linhas = entry.artigos
     .slice()
     .sort(compareIndexArtigos)
@@ -4230,8 +4317,11 @@ function renderSuperGroupCard(entry, tipo) {
       const posHtml = art.posicaoTexto
         ? escHtml(art.posicaoTexto)
         : '<span class="no-data">—</span>';
+      const cbHtml = isSuper
+        ? `<td class="etq-lote-td"><input type="checkbox" class="etq-lote-cb" data-cod="${escHtml(art.cod)}"${etqLoteSel.has(art.cod) ? ' checked' : ''} onchange="toggleEtqLote(this)" title="Marcar para emitir etiqueta"></td>`
+        : '';
       return `<tr data-area="${escHtml(art.area || '')}" data-grupo="${escHtml(art.grupo || '')}">
-        <td class="mono"><button type="button" class="cod-link" data-cod="${escHtml(art.cod)}" onclick="irParaArtigoNoIndice(this.dataset.cod)" title="Ver ficha deste artigo">${escHtml(art.cod)}</button></td>
+        ${cbHtml}<td class="mono"><button type="button" class="cod-link" data-cod="${escHtml(art.cod)}" onclick="irParaArtigoNoIndice(this.dataset.cod)" title="Ver ficha deste artigo">${escHtml(art.cod)}</button></td>
         <td>${escHtml(art.nome || '—')}</td>
         <td>${caixasHtml}</td>
         <td class="muted">${posHtml}</td>
@@ -4251,6 +4341,7 @@ function renderSuperGroupCard(entry, tipo) {
       <div class="cx-wrap">
         <table class="cx">
           <thead><tr>
+            ${isSuper ? '<th class="etq-lote-td" title="Marcar artigos para emitir etiquetas">🏷</th>' : ''}
             <th class="sortable" onclick="setIndexSort('cod')">Código${sortArrowHtml('cod')}</th>
             <th class="sortable" onclick="setIndexSort('artigo')">Artigo${sortArrowHtml('artigo')}</th>
             <th>Caixa / Quantidade</th>
@@ -4259,6 +4350,7 @@ function renderSuperGroupCard(entry, tipo) {
           <tbody>${linhas}</tbody>
         </table>
       </div>
+      ${isSuper ? `<div class="etq-lote-bar" id="etq-lote-bar" style="display:${etqLoteSel.size ? 'flex' : 'none'}"><button type="button" class="etq-print-btn" onclick="imprimirEtiquetasLote()">Imprimir etiquetas (<span id="etq-lote-count">${etqLoteSel.size}</span>)</button></div>` : ''}
     </div>
   </div>`;
 }
