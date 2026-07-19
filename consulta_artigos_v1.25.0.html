@@ -1,0 +1,4402 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<!--
+  Consulta de Artigos — v1.25.0
+  Semantic Versioning (https://semver.org)
+
+  Changelog:
+  v1.25.0 (atual)
+    - feat: nova aba "Etiqueta" — permite gerar uma etiqueta 23x80mm para um
+      artigo num supermercado. Fluxo: escolher supermercado → escolher
+      artigo → a etiqueta é desenhada, com botão "Imprimir etiqueta". A
+      etiqueta tem 4 zonas lado a lado: QR Code (com código|posição|
+      supermercado), coluna do meio com Posição no supermercado / Código do
+      artigo / "SGCIM", Descrição do artigo, e Preço Médio do artigo. A cor
+      de fundo do código+descrição segue o tipo de artigo: branco = de stock
+      (Stockável S); amarelo = não-stock (Stockável N); rosa = a pedido
+      (Stockável N com Descrição Zona = ENC nalguma posição)
+    - feat: o ficheiro Artigos (Consumo/ARM) passa a ler duas colunas que
+      antes eram ignoradas — "Stockável" (S/N) e "Preço Médio Artigo" —
+      usadas pela nova etiqueta. Não afetam os restantes modos de pesquisa
+  v1.24.0
+    - fix: pesquisa "Supermercados / Serviços" — no índice de Serviço, a
+      coluna "Caixa / Quantidade" mostrava as caixas do artigo de TODOS os
+      supermercados/serviços, incluindo serviços diferentes do pesquisado.
+      Passa a mostrar só as caixas cujo Serviço, na linha de origem do
+      ficheiro T_supermercados, corresponde ao serviço da ficha (cada linha
+      de caixa passa a guardar também o Serviço a que pertence, além do
+      Supermercado, que já era guardado). O índice de Supermercado não é
+      afetado por esta alteração
+  v1.23.0
+    - change: pesquisa "Artigos" — os badges de supermercado na secção
+      "Supermercados" da ficha de artigo passam a aparecer por ordem
+      alfabética dentro de cada grupo (HPH/ACES/Outro), em vez da ordem em
+      que apareciam no ficheiro de origem
+  v1.22.0
+    - feat: os dois ficheiros carregados (Supermercados e Artigos) passam a
+      ficar guardados no dispositivo (IndexedDB do browser, nada é enviado
+      para nenhum servidor) — ao dar refresh à página, fechar e reabrir o
+      browser, ou reabrir a app instalada, os dados guardados são lidos e
+      reprocessados automaticamente, sem pedir upload outra vez. Ao
+      carregar um novo ficheiro (ex: via "Trocar ficheiros"), o guardado é
+      substituído automaticamente, sem perguntar
+    - feat: novo link "Esquecer ficheiros" na barra de resumo (ao lado de
+      "Trocar ficheiros") para apagar os ficheiros guardados no
+      dispositivo e voltar ao ecrã de upload vazio
+    - fix (robustez): se o IndexedDB não estiver disponível (ex: alguns
+      modos de navegação privada) ou a leitura falhar, a app cai em
+      segurança para o ecrã de upload normal, sem rebentar
+  v1.21.0
+    - feat: pesquisa "Supermercados / Serviços" — clicar no código de um
+      artigo na tabela do índice salta diretamente para o modo "Artigos" e
+      já mostra a ficha desse artigo, tal como o salto inverso (clicar no
+      badge de supermercado na ficha de artigo, v1.20.0) já fazia para o
+      outro lado
+  v1.20.0
+    - feat: pesquisa "Artigos" — clicar num badge de supermercado (secção
+      "Supermercados" da ficha de artigo) salta diretamente para o modo
+      "Supermercados / Serviços" e já mostra a ficha de índice desse
+      supermercado (com todos os seus artigos), em vez de a pessoa ter de
+      trocar de modo e escrever o nome à mão
+  v1.19.0
+    - change: pesquisa "Artigos" — a secção "Serviços" deixou de aparecer
+      na ficha de artigo (o artigo continua associado a serviços nos
+      dados; só deixou de ter uma secção própria mostrada aqui)
+    - feat: pesquisa "Artigos" — o badge de cada supermercado (secção
+      "Supermercados" da ficha) passa a mostrar também o código do
+      supermercado entre parêntesis a seguir ao nome, ex: "Nome (COD123)"
+  v1.18.3
+    - chore: o símbolo genérico de caixa (SVG) junto ao título "Consulta
+      de Artigos", no cabeçalho, passa a ser o novo ícone da app ("Kz"),
+      o mesmo já usado no ícone de instalação/atalho — reutiliza o
+      ficheiro icon-192.png já existente, sem adicionar nenhum ficheiro
+      novo
+  v1.18.2
+    - chore: novo ícone da app (símbolo "Kz" sobre fundo verde), a
+      substituir o ícone anterior — atualizados os 4 ficheiros de ícone
+      (icon-192.png, icon-512.png e as versões "maskable") sem alterar os
+      nomes dos ficheiros
+  v1.18.1
+    - fix: cartão "Caixas por supermercado" mostrava a Quantidade Total do
+      supermercado nesse tipo de caixa (soma de várias caixas), em vez da
+      capacidade de uma única caixa desse tipo. Passa a usar a coluna
+      "Quantidade Caixa" do ficheiro Supermercados, que é o valor correto
+      para "quanto cabe numa caixa deste tipo". A "Quantidade Total"
+      continua a ser usada no cartão "Maior total por supermercado", que é
+      sobre outra coisa (o total do supermercado, não a capacidade da caixa)
+  v1.18.0
+    - feat: descoberto que as etiquetas têm um código de barras real
+      (Code 39) por baixo do texto — o scan ao vivo passa a tentar ler
+      esse código de barras primeiro (biblioteca ZXing), bem mais rápido
+      e fiável do que OCR de texto; só se não encontrar nenhum código de
+      barras nesse fotograma é que tenta o OCR como reserva. As duas vias
+      alimentam a mesma confirmação por 2 leituras seguidas iguais
+  v1.17.1
+    - fix: scan ao vivo não encontrava nenhum código, mesmo com o número
+      bem legível na imagem enviada para o OCR. Causa: a moldura de
+      recorte apanhava quase toda a altura do vídeo — normalmente mais do
+      que só a linha do código (outros textos da etiqueta) — o que
+      confundia o modo "linha única" do motor (v1.17.0), fazendo-o nunca
+      devolver texto nenhum. A moldura passa a ser uma faixa horizontal
+      ("letterbox"), bem mais baixa, para apanhar só a linha do número
+  v1.17.0
+    - perf: leitura do OCR ao vivo bastante mais precisa e mais rápida —
+      (A) o motor passa a estar configurado para só reconhecer dígitos
+      (0-9) em modo "linha única", em vez de tentar ler letras e texto
+      corrido; o motor de OCR passa também a ser criado uma única vez ao
+      abrir a câmara (antes era recriado a cada tentativa, o que era mais
+      lento); (B) cada tentativa passa a recortar só a zona da moldura
+      tracejada (em vez do fotograma inteiro), a ampliar essa zona e a
+      converter a preto e branco antes de enviar para o OCR; (C) um
+      candidato só passa a "encontrado" (com botões para usar/continuar)
+      depois de a MESMA leitura sair 2 vezes seguidas — antes, uma leitura
+      isolada mal interpretada já aparecia como candidato
+  v1.16.0
+    - feat: mira no centro do vídeo da câmara (scan ao vivo), para ajudar
+      a apontar diretamente ao código na etiqueta — soma-se à moldura
+      tracejada já existente, que continua a marcar a área geral captada
+  v1.15.0
+    - change: scan por foto passa a ser scan "ao vivo" — em vez de tirar
+      uma única foto, abre a câmara dentro da própria página (getUserMedia)
+      e tenta ler o código continuamente (~a cada 1,5s), mostrando o
+      candidato encontrado (mínimo 4 dígitos, para não mostrar ruído) com
+      botões "Usar este código" / "Continuar a tentar"; só preenche a
+      pesquisa quando a pessoa confirma. Substitui o botão anterior que
+      abria a app de câmara nativa do telemóvel para tirar 1 foto
+  v1.14.0
+    - feat: no modo "Artigos", novo botão de câmara junto à caixa de
+      pesquisa — tira uma foto a uma etiqueta e lê o código do artigo por
+      OCR (Tesseract.js), preenchendo a caixa de pesquisa com os dígitos
+      lidos (a pessoa revê/corrige antes de pesquisar; não pesquisa
+      sozinho). Texto lido é limpo para ficar só com dígitos (códigos são
+      só números), com correção de trocas típicas do OCR entre letras e
+      números parecidos (O→0, I/l→1, S→5, B→8)
+    - note: a primeira utilização do scan precisa de internet para
+      descarregar o motor de OCR (poucos MB); depois de descarregada uma
+      vez, essa cópia fica disponível offline tal como o resto da app
+  v1.13.0
+    - feat: app convertida em Progressive Web App (PWA) — pode ser
+      instalada (ecrã inicial / ambiente de trabalho) e funciona offline
+      depois da primeira visita. Requer 3 ficheiros novos ao lado do HTML:
+      manifest.json, sw.js e os ícones icon-192.png / icon-512.png /
+      icon-192-maskable.png / icon-512-maskable.png
+    - note: manifest.json aponta para o nome exato deste ficheiro HTML
+      (start_url); em cada futura subida de versão (nome de ficheiro
+      novo), o manifest.json e o sw.js têm de ser atualizados em conjunto
+  v1.12.0
+    - change: no painel "Informação importante" da ficha de artigo, o bloco
+      "Armazém e Posição" deixa de estar separado (acima) do grid de
+      cartões — passa a ser o primeiro dos 3 cartões lado a lado, junto de
+      "Supermercados com artigo" e "Maior total por supermercado"
+  v1.11.1
+    - fix: trocar entre os botões "Artigos" e "Supermercados / Serviços"
+      apagava o texto escrito na caixa de pesquisa (e a seleção feita no
+      índice de Supermercados / Serviços). Cada modo passa agora a manter
+      o seu próprio texto e seleção, de forma independente — voltar a um
+      modo mostra outra vez o que lá estava, sem se misturar com o outro
+  v1.11.0
+    - change: na ficha de artigo, "Armazém e Posição" deixa de ser uma
+      secção à parte — passa a ser a primeira parte do painel "Informação
+      importante", seguida dos cartões "Supermercados com artigo" e
+      "Maior total por supermercado"
+    - change: removido o cartão "Tipos de caixa" do painel (informação
+      redundante — os tipos já aparecem em "Caixas por supermercado")
+  v1.10.2
+    - fix: no índice de Serviço, a coluna de posição mostrava a posição de
+      ARMAZÉM (ficheiro Consumo) em vez da posição associada à própria
+      linha artigo+serviço no ficheiro T_supermercados. Passa a mostrar
+      "Posição no serviço", lida da mesma coluna "Posição" já usada no
+      índice de Supermercado — esta suposição errada vinha do v1.7.0/v1.7.1
+  v1.10.1
+    - fix: inconsistência visual entre os dois índices — o de Supermercado
+      só tinha o badge de Local (HPH/ACES) e o de Serviço só tinha os
+      botões de Área. As duas dimensões passam a aparecer nos dois
+      índices, sempre com a mesma regra: badge fixo se os artigos da ficha
+      só tiverem um valor (nada para filtrar), botões de filtro se
+      tiverem mais que um. Os filtros de Local e Área podem agora
+      combinar-se (uma linha só fica visível se bater com os dois)
+  v1.10.0
+    - change: a pesquisa "Supermercados / Serviços" deixa de mostrar logo
+      todas as fichas encontradas — passa a mostrar um badge por
+      supermercado/serviço encontrado (agrupados em "Supermercados" e
+      "Serviços"), e só a ficha do badge escolhido é que aparece com o
+      índice de artigos. Mesma lógica de "clicar para escolher, com estado
+      ativo" já usada nos botões de filtro por Área (v1.9.0)
+  v1.9.0
+    - feat: a coluna "Área" do ficheiro T_supermercados passa a ser lida;
+      na ficha de Serviço (pesquisa "Supermercados / Serviços"), quando um
+      serviço tem artigos de mais que uma área, aparecem botões junto ao
+      nome do serviço ("Todas" + uma por área) para filtrar a tabela de
+      artigos só à área escolhida
+  v1.8.0
+    - feat: as tabelas do índice (pesquisa "Supermercados / Serviços")
+      passam a poder ser ordenadas, ascendente ou descendente, clicando no
+      cabeçalho de Código, Artigo ou Posição; clicar outra vez no mesmo
+      cabeçalho inverte a direção
+    - change: a coluna única "Artigo" (código + descrição) do índice foi
+      dividida em duas colunas — "Código" e "Artigo" — para poderem ser
+      ordenadas separadamente
+  v1.7.1
+    - fix: no índice por supermercado (pesquisa "Supermercados / Serviços"),
+      a coluna "Posição" mostrava a posição do artigo no ARMAZÉM (ficheiro
+      Consumo), sempre igual independentemente do supermercado. Passa a
+      mostrar a posição correta — lida da coluna "Posição" do próprio
+      ficheiro T_supermercados, que é a posição do artigo DENTRO daquele
+      supermercado/kanban. O índice por serviço mantém a posição de
+      armazém, já que "Posição" no ficheiro de supermercados só faz
+      sentido associada a um supermercado, não a um serviço
+  v1.7.0
+    - feat: pesquisa por "Supermercados / Serviços" deixa de mostrar fichas
+      de artigo — passa a mostrar um índice por supermercado (ou serviço)
+      encontrado, com a lista de todos os artigos aí presentes (tipo de
+      caixa, quantidade e posição), em vez de obrigar a abrir cada artigo
+      um a um
+    - note: para "Serviço" não existe, nos ficheiros de origem, associação
+      direta entre caixa e serviço (só entre caixa e supermercado); por
+      isso, no índice por serviço, a coluna de caixas mostra todas as
+      caixas do artigo (de todos os supermercados), não só as do serviço
+  v1.6.1
+    - change: nomes dos botões de upload simplificados — "T_supermercados"
+      passa a "Supermercados" e "Consumo" passa a "Artigos" (apenas o texto
+      mostrado no botão; nomes internos dos ficheiros e estrutura de
+      colunas não mudam)
+  v1.6.0
+    - feat: a pesquisa deixa de ser uma única caixa "tudo em um" — passa a
+      haver dois botões, "Artigos" e "Supermercados / Serviços", cada um
+      com a sua caixa de texto. Só uma caixa está visível de cada vez; ao
+      trocar de botão, o texto e os resultados anteriores são limpos
+  v1.5.0
+    - feat: depois de carregar os dois ficheiros, a zona de upload deixa de
+      ocupar espaço no ecrã — colapsa numa barra fina com um link "Trocar
+      ficheiros" para reabrir o upload sem perder os dados já carregados
+  v1.4.2
+    - chore: número da versão passa a constar também na meta description
+      do ficheiro (tag <meta name="description">), além do título e do
+      cabeçalho, para ser visível em partilhas de link e no separador
+      "Ver código fonte"
+  v1.4.1
+    - change: a pesquisa só arranca a partir de 2 caracteres (com 1 só
+      carácter, em milhares de linhas, devolvia demasiados resultados para
+      ser útil e parecia "não estar a funcionar")
+    - perf: pequeno atraso (150ms) antes de pesquisar depois de cada tecla,
+      para não recalcular a cada milissegundo ao escrever depressa
+    - fix: aviso "mostrando os primeiros 30" só aparecia quando havia
+      exatamente 30 resultados; agora aparece sempre que há mais de 30
+  v1.4.0
+    - feat: pesquisa passa a encontrar também por Serviço (código ou
+      descrição), coluna existente no ficheiro real de supermercados mas
+      que ainda não era lida
+    - feat: nova secção "Serviços" na ficha do artigo, para se perceber
+      porque é que um resultado apareceu ao pesquisar por serviço
+  v1.3.2
+    - fix: pesquisa por supermercado passa a ignorar acentos (ex: "Povoa"
+      encontra "Póvoa"), tornando-a mais fiável
+  v1.3.1
+    - change: tipos de caixa (cartão de resumo e secção "Caixas por
+      supermercado") passam a aparecer por ordem alfabética
+    - change: secção "Caixas por supermercado" passa a aparecer acima de
+      "Supermercados" na ficha do artigo
+    - feat: a pesquisa passa a encontrar também por supermercado (código ou
+      descrição), além de código/descrição do artigo
+  v1.3.0
+    - change: cartão "Supermercados com artigo" mostra agora quantos são HPH
+      e quantos são ACES, em vez da lista de nomes
+    - change: cartão "Tipos de caixa" mostra apenas os tipos existentes
+      (sem quantidades)
+    - change: secção "Caixas por supermercado" passou a agrupar por HPH/ACES,
+      mostrando o tipo de caixa e a quantidade máxima de cada grupo, em vez
+      de uma linha por supermercado
+  v1.2.0
+    - feat: painel "Informação importante" em cada artigo com resumo rápido
+      (nº de supermercados, tipos de caixa com quantidade máxima, maior
+      total por supermercado)
+    - feat: supermercados agrupados por "Local" (HPH / ACES), lido da coluna
+      "Local" do ficheiro de supermercados
+    - chore: nomes dos ficheiros no ecrã de upload atualizados para
+      "T_supermercados" e "Consumo" (apenas o texto mostrado; estrutura de
+      colunas não mudou)
+  v1.1.0
+    - fix: correção de correspondência de colunas ("Artigo" deixou de apanhar
+      "Código Artigo"; "Supermercado" deixou de apanhar "Código Supermercado")
+    - feat: quantidade máxima por tipo de caixa (quando há linhas duplicadas
+      para o mesmo tipo de caixa + supermercado, mantém-se a de maior total)
+    - feat: total agregado por supermercado (soma dos máximos de cada tipo
+      de caixa), mostrado como resumo na ficha do artigo
+  v1.0.1
+    - versão inicial
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Consulta de Artigos — v1.25.0</title>
+<meta name="description" content="Consulta de Artigos v1.25.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1a4fa0">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Artigos">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<script src="https://unpkg.com/@zxing/browser@latest"></script>
+<script>
+/* qrcode-generator (MIT, Kazuhiko Arase) — embutido para QR offline na etiqueta */
+/* qrcode-generator v1.x — MIT, Kazuhiko Arase — embutido para funcionamento offline */
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+
+(function (factory) {
+  if (typeof define === 'function' && define.amd) {
+      define([], factory);
+  } else if (typeof exports === 'object') {
+      module.exports = factory();
+  }
+}(function () {
+    return qrcode;
+}));
+
+;window.qrcode = qrcode;
+
+</script>
+<style>
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #f0efe9;
+    --border: #e2e0d8;
+    --border2: #cac8be;
+    --text: #1a1916;
+    --text2: #6b6960;
+    --text3: #a09e96;
+    --blue-bg: #e8f0fb;
+    --blue-txt: #1a4fa0;
+    --green-bg: #e4f3e8;
+    --green-txt: #1a6632;
+    --amber-bg: #fef3db;
+    --amber-txt: #8a5a00;
+    --red-bg: #fde8e8;
+    --red-txt: #991818;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* HEADER */
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 2rem; display: flex; align-items: center; gap: 16px; height: 56px; position: sticky; top: 0; z-index: 100; }
+  header h1 { font-size: 16px; font-weight: 600; color: var(--text); }
+  header .header-logo { border-radius: 6px; display: block; flex-shrink: 0; object-fit: cover; }
+  header .sep { width: 1px; height: 20px; background: var(--border); }
+  header .subtitle { font-size: 13px; color: var(--text2); }
+  .version { font-size: 11px; background: var(--surface2); border: 1px solid var(--border); border-radius: 99px; padding: 2px 9px; color: var(--text2); margin-left: auto; }
+
+  /* LAYOUT */
+  .container { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
+
+  /* UPLOAD SECTION */
+  .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
+  .upload-card { background: var(--surface); border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+  .upload-card:hover { border-color: var(--blue-txt); background: var(--blue-bg); }
+  .upload-card.loaded { border-style: solid; border-color: #1a6632; background: var(--green-bg); cursor: default; }
+  .upload-card svg { width: 32px; height: 32px; color: var(--text3); margin-bottom: 8px; }
+  .upload-card.loaded svg { color: var(--green-txt); }
+  .upload-card .uc-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .upload-card .uc-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .upload-card .uc-count { font-size: 12px; color: var(--green-txt); font-weight: 500; margin-top: 6px; }
+  .upload-card input[type=file] { display: none; }
+  .auto-load-status { font-size: 12.5px; color: var(--text2); text-align: center; padding: 10px; margin-bottom: 1rem; display: none; }
+
+  /* UPLOAD BAR (estado colapsado, depois de ambos os ficheiros carregados) */
+  .upload-bar { display: none; align-items: center; justify-content: space-between; gap: 12px; font-size: 12.5px; color: var(--text2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; margin-bottom: 1.5rem; background: var(--surface); }
+  .upload-bar .ub-status { display: flex; align-items: center; gap: 6px; overflow: hidden; }
+  .upload-bar .ub-status svg { width: 14px; height: 14px; color: var(--green-txt); flex-shrink: 0; }
+  .upload-bar .ub-files { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .upload-bar button.ub-switch { background: none; border: none; padding: 0; font: inherit; font-size: 12.5px; color: var(--blue-txt); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; flex-shrink: 0; }
+  .upload-bar button.ub-switch:hover { color: var(--text); }
+  .upload-bar .ub-sep { color: var(--border2); flex-shrink: 0; }
+
+  /* SEARCH MODE TOGGLE */
+  .mode-toggle { display: flex; gap: 4px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; margin-bottom: 10px; }
+  .mode-btn { flex: 1; border: none; background: none; padding: 8px 10px; font: inherit; font-size: 13px; font-weight: 600; color: var(--text2); border-radius: var(--radius-sm); cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .mode-btn:hover { color: var(--text); }
+  .mode-btn.active { background: var(--surface); color: var(--blue-txt); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+  .mode-btn:disabled { cursor: not-allowed; opacity: 0.6; }
+
+  /* SEARCH */
+  .search-wrap { position: relative; margin-bottom: 1.5rem; }
+  .search-wrap svg.icon-search { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--text3); pointer-events: none; }
+  #search-input-artigo, #search-input-super { width: 100%; padding: 10px 40px 10px 40px; font-size: 15px; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  #search-input-artigo:focus, #search-input-super:focus { border-color: var(--blue-txt); box-shadow: 0 0 0 3px rgba(26,79,160,0.1); }
+  #search-input-artigo:disabled, #search-input-super:disabled { background: var(--surface2); color: var(--text3); cursor: not-allowed; }
+  #btn-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; display: none; border-radius: 99px; }
+  #btn-clear:hover { color: var(--text); background: var(--surface2); }
+
+  /* SCAN (OCR ao vivo) */
+  #search-input-artigo { padding-right: 76px; }
+  #btn-scan { position: absolute; right: 40px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; border-radius: 99px; display: none; }
+  #btn-scan:hover { color: var(--blue-txt); background: var(--surface2); }
+  #btn-scan:disabled { cursor: not-allowed; opacity: 0.5; }
+  .ocr-msg { font-size: 12.5px; color: var(--amber-txt); background: var(--amber-bg); border-radius: var(--radius-sm); padding: 8px 12px; margin: -10px 0 1.5rem; display: none; }
+
+  .scan-overlay { position: fixed; inset: 0; background: rgba(10,10,8,0.94); z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+  .scan-overlay.open { display: flex; }
+  .scan-video-wrap { position: relative; width: 100%; max-width: 440px; aspect-ratio: 3 / 4; background: #000; border-radius: var(--radius); overflow: hidden; }
+  #scan-video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scan-frame-hint { position: absolute; inset: 40% 8%; border: 2px dashed rgba(255,255,255,0.55); border-radius: 8px; pointer-events: none; }
+  .scan-crosshair { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .scan-close { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.45); border: none; color: #fff; cursor: pointer; padding: 6px; border-radius: 99px; line-height: 0; }
+  .scan-status { color: #f2f1ec; font-size: 13px; margin-top: 16px; text-align: center; min-height: 18px; }
+  .scan-candidate { margin-top: 14px; display: none; flex-direction: column; align-items: center; gap: 10px; }
+  .scan-candidate-num { font-family: 'Cascadia Code', 'Courier New', monospace; font-size: 24px; font-weight: 700; color: #fff; background: rgba(255,255,255,0.14); padding: 8px 20px; border-radius: 8px; letter-spacing: 1px; }
+  .scan-actions { display: flex; gap: 10px; }
+  .scan-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 99px; border: none; cursor: pointer; }
+  .scan-btn.primary { background: var(--blue-txt); color: #fff; }
+  .scan-btn.secondary { background: rgba(255,255,255,0.16); color: #fff; }
+
+  /* RESULTS */
+  #results { display: none; }
+  .results-header { font-size: 13px; color: var(--text2); margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+  /* ARTIGO CARD */
+  .artigo-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; overflow: hidden; }
+  .artigo-card-header { padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 12px; }
+  .cod-pill { background: var(--blue-bg); color: var(--blue-txt); font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; white-space: nowrap; font-family: 'Cascadia Code', 'Courier New', monospace; }
+  .artigo-nome { font-size: 14px; font-weight: 600; color: var(--text); line-height: 1.4; }
+  .artigo-card-body { padding: 14px 18px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* SECTION LABEL */
+  .sec-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text3); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+
+  /* ARM GRID */
+  .arm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+  .arm-cell { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .arm-cell-name { font-size: 11px; color: var(--text2); margin-bottom: 3px; }
+  .arm-cell-pos { font-size: 14px; font-weight: 600; color: var(--text); font-family: 'Cascadia Code', 'Courier New', monospace; }
+  .arm-cell-um { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .arm-cell-obs { font-size: 11px; color: var(--amber-txt); background: var(--amber-bg); border-radius: 4px; padding: 2px 6px; margin-top: 4px; display: inline-block; }
+
+  /* DIVIDER */
+  .divider { border: none; border-top: 1px solid var(--border); }
+
+  /* SUPER TAGS */
+  .super-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .super-tag { background: var(--amber-bg); color: var(--amber-txt); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 99px; }
+  .super-tag-btn { border: none; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .super-tag-btn:hover { background: #f3dfa8; }
+  .super-group { margin-bottom: 10px; }
+  .super-group:last-child { margin-bottom: 0; }
+  .super-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); margin-bottom: 6px; }
+
+  /* INFO PANEL */
+  .info-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
+  .info-card { border-radius: var(--radius-sm); padding: 12px 14px; }
+  .info-card.neutral { background: var(--surface2); }
+  .info-card.blue  { background: var(--blue-bg); }
+  .info-card.amber { background: var(--amber-bg); }
+  .info-card-title { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .info-card.neutral .info-card-title { color: var(--text2); }
+  .info-card.blue  .info-card-title { color: var(--blue-txt); }
+  .info-card.amber .info-card-title { color: var(--amber-txt); }
+  .info-card-num { font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; margin-bottom: 6px; }
+  .info-card-detail { font-size: 12px; color: var(--text2); line-height: 1.5; word-break: break-word; }
+
+  @media (max-width: 900px) {
+    .info-grid { grid-template-columns: 1fr; }
+  }
+
+  /* CAIXAS TABLE */
+  .cx-wrap { overflow-x: auto; }
+  table.cx { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.cx th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); padding: 4px 10px 6px 0; border-bottom: 1px solid var(--border); }
+  table.cx td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+  table.cx tr:last-child td { border-bottom: none; }
+  table.cx td.mono { font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; }
+  .cod-link { background: none; border: none; padding: 0; font: inherit; font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; color: var(--blue-txt); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  .cod-link:hover { color: var(--text); }
+  table.cx td.muted { color: var(--text2); }
+  table.cx th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+  table.cx th.sortable:hover { color: var(--text); }
+
+  /* ÁREA (filtro na ficha de Serviço) */
+  .sgc-header-main { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
+  .area-filter-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .area-btn { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); font: inherit; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 99px; cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .area-btn:hover { color: var(--text); border-color: var(--text3); }
+  .area-btn.active { background: var(--blue-bg); color: var(--blue-txt); border-color: var(--blue-txt); }
+  .badge-total { background: var(--blue-bg); color: var(--blue-txt); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; font-family: 'Cascadia Code', 'Courier New', monospace; }
+
+  /* CAIXAS POR GRUPO (HPH / ACES) */
+  .cxgrp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .cxgrp-col { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .cxgrp-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text2); margin-bottom: 8px; }
+  .cxgrp-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
+  .cxgrp-row:last-child { border-bottom: none; }
+  .cxgrp-tipo { font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; font-size: 13px; color: var(--text); }
+
+  /* EMPTY */
+  .no-data { color: var(--text3); font-size: 13px; font-style: italic; }
+  .empty-state { text-align: center; padding: 4rem 1rem; color: var(--text3); }
+  .empty-state svg { width: 44px; height: 44px; margin: 0 auto 12px; display: block; opacity: 0.4; }
+  .empty-state p { font-size: 14px; }
+
+  @media (max-width: 600px) {
+    .upload-grid { grid-template-columns: 1fr; }
+    header { padding: 0 1rem; }
+    .container { padding: 1.5rem 1rem; }
+  }
+
+  /* ── ETIQUETA (23x80mm) ── */
+  .etiqueta-wrap { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 4px; }
+  .etiqueta {
+    width: 80mm; height: 23mm;
+    display: grid;
+    grid-template-columns: 23mm 22mm 1fr 16mm; /* QR · meio · descrição · preço */
+    background: #fff; color: #000;
+    border: 1px solid #000;
+    box-sizing: border-box;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+  }
+  .etiqueta > div { border-right: 1px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
+  .etiqueta > div:last-child { border-right: none; }
+  .etq-qr { padding: 1mm; background: #fff; }
+  .etq-qr svg { width: 100%; height: 100%; display: block; }
+  .etq-meio { padding: 0; }
+  .etq-meio > div { width: 100%; border-bottom: 1px solid #000; display: flex; align-items: center; justify-content: center; flex: 1; }
+  .etq-meio > div:last-child { border-bottom: none; }
+  .etq-pos { font-weight: 700; font-size: 11px; font-family: 'Cascadia Code', 'Courier New', monospace; }
+  .etq-cod-cell { font-size: 10px; font-family: 'Cascadia Code', 'Courier New', monospace; }
+  .etq-sgcim { font-size: 8px; letter-spacing: 0.5px; }
+  .etq-descricao { padding: 1mm; font-size: 9.5px; line-height: 1.15; background: #fff; }
+  .etq-preco { padding: 1mm; font-size: 10px; font-weight: 600; background: #fff; }
+  /* Cor pinta só código + descrição (regra de negócio) */
+  .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; }
+  .etiqueta.cor-rosa    .etq-cod-cell, .etiqueta.cor-rosa    .etq-descricao { background: #ffd6e7; }
+  /* branco = sem alteração (fundo já branco) */
+  .etq-print-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 99px; border: none; background: var(--blue-txt); color: #fff; cursor: pointer; }
+  .etq-print-btn:hover { filter: brightness(1.08); }
+
+  @media print {
+    body * { visibility: hidden; }
+    .etiqueta, .etiqueta * { visibility: visible; }
+    .etiqueta { position: absolute; left: 0; top: 0; margin: 0; }
+    .etq-print-btn { display: none; }
+    @page { size: 80mm 23mm; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <img src="icon-192.png" alt="" width="26" height="26" class="header-logo">
+  <h1>Consulta de Artigos</h1>
+  <div class="sep"></div>
+  <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
+  <span class="version">v1.25.0</span>
+</header>
+
+<div class="container">
+
+  <!-- UPLOAD -->
+  <div id="upload-section">
+    <div class="auto-load-status" id="auto-load-status">A carregar dados guardados…</div>
+    <div class="upload-grid">
+      <div class="upload-card" id="z-super" onclick="document.getElementById('f-super').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+        <div class="uc-title">Supermercados</div>
+        <div class="uc-sub">Supermercados / Kanbans</div>
+        <div class="uc-count" id="count-super" style="display:none"></div>
+        <input type="file" id="f-super" accept=".xlsx" onchange="loadFile(this,'super')">
+      </div>
+      <div class="upload-card" id="z-arm" onclick="document.getElementById('f-arm').click()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <div class="uc-title">Artigos</div>
+        <div class="uc-sub">Armazém / Posições</div>
+        <div class="uc-count" id="count-arm" style="display:none"></div>
+        <input type="file" id="f-arm" accept=".xlsx" onchange="loadFile(this,'arm')">
+      </div>
+    </div>
+  </div>
+
+  <!-- UPLOAD BAR (visível só depois de ambos os ficheiros estarem carregados) -->
+  <div class="upload-bar" id="upload-bar">
+    <span class="ub-status">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>
+      <span class="ub-files" id="ub-files"></span>
+    </span>
+    <button class="ub-switch" onclick="showUploadSection()">Trocar ficheiros</button>
+    <span class="ub-sep">·</span>
+    <button class="ub-switch" onclick="esquecerFicheiros()">Esquecer ficheiros</button>
+  </div>
+
+  <!-- SEARCH MODE -->
+  <div class="mode-toggle">
+    <button type="button" class="mode-btn active" id="mode-btn-artigo" onclick="setSearchMode('artigo')" disabled>Artigos</button>
+    <button type="button" class="mode-btn" id="mode-btn-super" onclick="setSearchMode('super')" disabled>Supermercados / Serviços</button>
+    <button type="button" class="mode-btn" id="mode-btn-etiqueta" onclick="setSearchMode('etiqueta')" disabled>Etiqueta</button>
+  </div>
+
+  <!-- SEARCH -->
+  <div class="search-wrap">
+    <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="search-input-artigo" placeholder="Pesquisar por código ou descrição do artigo…" oninput="onSearchInput()" disabled>
+    <input type="text" id="search-input-super" placeholder="Pesquisar por supermercado ou serviço (código ou descrição)…" oninput="onSearchInput()" disabled style="display:none">
+    <input type="text" id="search-input-etiqueta" placeholder="Pesquisar supermercado para gerar etiqueta…" oninput="onSearchInput()" disabled style="display:none">
+    <button id="btn-scan" onclick="abrirScanAoVivo()" title="Ler código pela câmara" disabled>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+    </button>
+    <button id="btn-clear" onclick="clearSearch()" title="Limpar pesquisa">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="ocr-msg" id="ocr-msg"></div>
+
+  <!-- SCAN AO VIVO (overlay) -->
+  <div class="scan-overlay" id="scan-overlay">
+    <div class="scan-video-wrap">
+      <video id="scan-video" autoplay playsinline muted></video>
+      <div class="scan-frame-hint"></div>
+      <svg class="scan-crosshair" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+        <circle cx="32" cy="32" r="18" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="1.5"/>
+        <line x1="32" y1="0"  x2="32" y2="14" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+        <line x1="32" y1="50" x2="32" y2="64" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+        <line x1="0"  y1="32" x2="14" y2="32" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+        <line x1="50" y1="32" x2="64" y2="32" stroke="rgba(255,255,255,0.85)" stroke-width="2"/>
+      </svg>
+      <button class="scan-close" onclick="fecharScanAoVivo()" title="Fechar câmara">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="scan-status" id="scan-status">A abrir câmara…</div>
+    <div class="scan-candidate" id="scan-candidate">
+      <span class="scan-candidate-num" id="scan-candidate-num"></span>
+      <div class="scan-actions">
+        <button type="button" class="scan-btn secondary" onclick="continuarScan()">Continuar a tentar</button>
+        <button type="button" class="scan-btn primary" onclick="usarCandidato()">Usar este código</button>
+      </div>
+    </div>
+  </div>
+  <canvas id="scan-canvas" style="display:none"></canvas>
+
+  <!-- RESULTS -->
+  <div id="results">
+    <div class="results-header" id="results-header"></div>
+
+    <div id="cards-container"></div>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────
+let superMap = {};   // cod → { nome, supermercados[], caixas[] }
+let armMap   = {};   // cod → { descArtigo, posicoes[] }
+let superLoaded = false, armLoaded = false;
+
+// ── File loading ───────────────────────────────────────
+function loadFile(input, tipo) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const buffer = e.target.result;
+    processFileBuffer(buffer, tipo, file.name);
+    // Guarda os bytes originais no dispositivo (IndexedDB) para a próxima
+    // vez que a app abrir não ser preciso voltar a pedir este ficheiro —
+    // ver secção "Persistência local (IndexedDB)". Isto substitui
+    // automaticamente o que estivesse guardado antes para este tipo.
+    guardarFicheiroDB(tipo, buffer, file.name);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Interpreta os bytes de um ficheiro .xlsx (ler as linhas, encontrar o
+// cabeçalho, processar). Extraído de loadFile para poder ser reutilizado
+// tanto no upload manual (acima) como no carregamento automático a partir
+// do IndexedDB (ver tentarCarregarGuardado) — as duas vias têm de tratar
+// os bytes exatamente da mesma forma.
+function processFileBuffer(buffer, tipo, fname) {
+  const wb  = XLSX.read(buffer, { type: 'array' });
+  const ws  = wb.Sheets[wb.SheetNames[0]];
+  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  let hRow  = -1;
+  for (let i = 0; i < Math.min(10, raw.length); i++) {
+    if (raw[i].filter(c => String(c).trim().length > 2).length > 3) { hRow = i; break; }
+  }
+  if (hRow === -1) { alert('Não foi possível ler o ficheiro. Verifique o formato.'); return; }
+  const headers = raw[hRow].map(c => String(c).trim());
+  const rows    = raw.slice(hRow + 1).filter(r => r.some(c => String(c).trim()));
+  if (tipo === 'super') processSuperFile(headers, rows, fname);
+  else                  processArmFile(headers, rows, fname);
+}
+
+// Prefere correspondência EXATA do cabeçalho; só recorre a substring se não
+// houver exata. Sem isto, procurar "Artigo" apanhava "Código Artigo" (porque
+// contém "artigo"), e "Supermercado" apanhava "Código Supermercado".
+function col(headers, terms) {
+  for (const t of terms) {
+    const i = headers.findIndex(h => h.toLowerCase() === t.toLowerCase());
+    if (i !== -1) return i;
+  }
+  for (const t of terms) {
+    const i = headers.findIndex(h => h.toLowerCase().includes(t.toLowerCase()));
+    if (i !== -1) return i;
+  }
+  return -1;
+}
+
+function v(row, i) { return i !== -1 ? String(row[i] || '').trim() : ''; }
+function n(row, i) { return i !== -1 && row[i] !== '' ? row[i] : ''; }
+
+// Classifica o valor da coluna "Local" em HPH, ACES ou Outro. Feito por
+// palavra-chave (não exato) para tolerar variações tipo "HPH Braga" ou
+// "ACES Porto Oriental".
+function classificaLocal(local) {
+  const l = local.toUpperCase();
+  if (l.includes('ACES')) return 'ACES';
+  if (l.includes('HPH'))  return 'HPH';
+  return 'Outro';
+}
+
+function processSuperFile(headers, rows, fname) {
+  const iCod    = col(headers, ['Código Artigo', 'Codigo Artigo']);
+  const iNome   = col(headers, ['Artigo']);
+  const iSuper  = col(headers, ['Supermercado']);
+  const iCodS   = col(headers, ['Código Supermercado', 'Codigo Supermercado']);
+  const iServ   = col(headers, ['Serviço', 'Servico']);
+  const iCodServ= col(headers, ['Código Serviço', 'Codigo Servico', 'Codigo Servico']);
+  const iArea   = col(headers, ['Área', 'Area']);
+  const iLocal  = col(headers, ['Local']);
+  const iPosicao= col(headers, ['Posição', 'Posicao']);
+  const iTipoCx = col(headers, ['Tipo Caixa']);
+  const iNrCx   = col(headers, ['Nº Caixas', 'Nr Caixas', 'Numero Caixas']);
+  const iQtdCx  = col(headers, ['Quantidade Caixa']);
+  const iQtdTot = col(headers, ['Quantidade Total']);
+
+  superMap = {};
+  rows.forEach(r => {
+    const cod = v(r, iCod);
+    if (!cod) return;
+    if (!superMap[cod]) superMap[cod] = { nome: '', supermercados: [], servicos: [], caixas: [] };
+    const nome = v(r, iNome);
+    if (nome && !superMap[cod].nome) superMap[cod].nome = nome;
+    const sNome = v(r, iSuper), sCod = v(r, iCodS), sLocal = v(r, iLocal), sPosicao = v(r, iPosicao), sArea = v(r, iArea);
+    if (sNome && !superMap[cod].supermercados.find(s => s.nome === sNome))
+      superMap[cod].supermercados.push({ cod: sCod, nome: sNome, local: sLocal, grupo: classificaLocal(sLocal), posicao: sPosicao, area: sArea });
+    const servNome = v(r, iServ), servCod = v(r, iCodServ);
+    if (servNome && !superMap[cod].servicos.find(sv => sv.nome === servNome))
+      superMap[cod].servicos.push({ cod: servCod, nome: servNome, area: sArea, local: sLocal, grupo: classificaLocal(sLocal), posicao: sPosicao });
+    const tipoCx = v(r, iTipoCx);
+    if (tipoCx) {
+      // Guarda a linha "em bruto"; a agregação (máximo por tipo+supermercado)
+      // é feita depois por aggregateCaixas, pois o export pode ter mais que
+      // uma linha para a mesma combinação tipo de caixa + supermercado.
+      superMap[cod].caixas.push({ tipoCx, qtdCx: n(r, iQtdCx), nrCx: n(r, iNrCx), qtdTotal: n(r, iQtdTot), superNome: sNome, servNome, grupo: classificaLocal(sLocal) });
+    }
+  });
+
+  // Colapsa duplicados: para cada (tipo de caixa, supermercado) fica só a
+  // linha com a maior Quantidade Total — "quantidade máxima por tipo de caixa".
+  // Nota: a versão agregada por Serviço (caixasPorServico) é calculada
+  // ANTES desta linha, a partir das mesmas linhas em bruto, porque esta
+  // instrução substitui a.caixas pela versão já colapsada por supermercado
+  // (que já não tem toda a informação de serviço linha a linha).
+  Object.values(superMap).forEach(a => { a.caixasPorServico = aggregateCaixasPorServico(a.caixas); });
+  Object.values(superMap).forEach(a => { a.caixas = aggregateCaixas(a.caixas); });
+
+  superLoaded = true;
+  markLoaded('z-super', 'count-super', fname, Object.keys(superMap).length + ' artigos', 'super');
+  checkReady();
+}
+
+// Colapsa linhas duplicadas por (tipoCx, superNome), mantendo a de maior
+// Quantidade Total.
+function aggregateCaixas(rows) {
+  const byKey = new Map();
+  for (const r of rows) {
+    const key = r.tipoCx + '|' + r.superNome;
+    const atual = byKey.get(key);
+    const total = Number(r.qtdTotal) || 0;
+    if (!atual || total > (Number(atual.qtdTotal) || 0)) byKey.set(key, r);
+  }
+  return [...byKey.values()];
+}
+
+// Colapsa linhas duplicadas por (tipoCx, servNome), mantendo a de maior
+// Quantidade Total — mesma lógica de aggregateCaixas, mas agrupada por
+// Serviço em vez de Supermercado. Usada para o índice de Serviço poder
+// mostrar só as caixas desse serviço, em vez de todas as do artigo.
+// Testado isoladamente em caixas-por-servico.test.mjs antes de ser copiada
+// para aqui.
+function aggregateCaixasPorServico(rows) {
+  const byKey = new Map();
+  for (const r of rows) {
+    const key = r.tipoCx + '|' + r.servNome;
+    const atual = byKey.get(key);
+    const total = Number(r.qtdTotal) || 0;
+    if (!atual || total > (Number(atual.qtdTotal) || 0)) byKey.set(key, r);
+  }
+  return [...byKey.values()];
+}
+
+// Filtra a lista já agregada por serviço (aggregateCaixasPorServico),
+// devolvendo só as caixas cujo Serviço, na linha de origem, é o pedido.
+// Testado isoladamente em caixas-por-servico.test.mjs.
+function caixasDoServico(caixasAgregadas, servNome) {
+  return caixasAgregadas.filter(c => c.servNome === servNome);
+}
+
+// Soma, por supermercado, os totais já agregados (máximos) de cada tipo de
+// caixa — "quantidade total por supermercado".
+function totaisPorSupermercado(caixasAgregadas) {
+  const totais = {};
+  for (const c of caixasAgregadas) {
+    totais[c.superNome] = (totais[c.superNome] || 0) + (Number(c.qtdTotal) || 0);
+  }
+  return totais;
+}
+
+// Supermercado com o maior total agregado — usado no cartão "Maior total
+// por supermercado" do resumo.
+function maiorTotalSupermercado(totais) {
+  let nome = '', valor = -1;
+  for (const [k, v] of Object.entries(totais)) {
+    if (v > valor) { nome = k; valor = v; }
+  }
+  return valor >= 0 ? { nome, valor } : null;
+}
+
+// Para cada grupo (HPH / ACES / Outro), a maior "Quantidade Caixa" de cada
+// tipo de caixa entre os supermercados desse grupo, ordenada alfabeticamente
+// por tipo — usada na secção "Caixas por supermercado", agora organizada
+// por grupo.
+// Importante: usa "Quantidade Caixa" (capacidade — quantas unidades cabem
+// numa caixa desse tipo), não "Quantidade Total" (quantidade total desse
+// tipo de caixa naquele supermercado, que pode somar várias caixas) — são
+// coisas diferentes. "Quantidade Total" continua a ser usada só no cartão
+// "Maior total por supermercado" (ver totaisPorSupermercado).
+function maxPorTipoEGrupo(caixasAgregadas) {
+  const porGrupo = {};
+  for (const c of caixasAgregadas) {
+    if (!porGrupo[c.grupo]) porGrupo[c.grupo] = new Map();
+    const val = Number(c.qtdCx) || 0;
+    const atual = porGrupo[c.grupo].get(c.tipoCx) || 0;
+    if (val > atual) porGrupo[c.grupo].set(c.tipoCx, val);
+  }
+  const resultado = {};
+  for (const [grupo, mapa] of Object.entries(porGrupo)) {
+    resultado[grupo] = [...mapa.entries()]
+      .map(([tipo, max]) => ({ tipo, max }))
+      .sort((a, b) => a.tipo.localeCompare(b.tipo, 'pt'));
+  }
+  return resultado;
+}
+function processArmFile(headers, rows, fname) {
+  const iCod      = col(headers, ['Código Artigo', 'Codigo Artigo']);
+  const iDescArt  = col(headers, ['Descrição Artigo', 'Descricao Artigo']);
+  const iCodArm   = col(headers, ['Código Armazém', 'Codigo Armazem']);
+  const iNomeArm  = col(headers, ['Descrição Armazém', 'Descricao Armazem', 'Armazém']);
+  const iZona     = col(headers, ['Zona']);
+  const iDescZona = col(headers, ['Descrição Zona', 'Descricao Zona']);
+  const iUM       = col(headers, ['Unidade de Medida']);
+  const iObs      = col(headers, ['Obs']);
+  const iStock    = col(headers, ['Stockável', 'Stockavel']);
+  const iPreco    = col(headers, ['Preço Médio Artigo', 'Preco Medio Artigo']);
+
+  armMap = {};
+  rows.forEach(r => {
+    const cod = v(r, iCod);
+    if (!cod) return;
+    if (!armMap[cod]) armMap[cod] = { descArtigo: '', posicoes: [], stockavel: '', precoMedio: '' };
+    const desc = v(r, iDescArt);
+    if (desc && !armMap[cod].descArtigo) armMap[cod].descArtigo = desc;
+    // Stockável e Preço Médio são propriedades do artigo (não da posição);
+    // guarda-se a primeira ocorrência não-vazia de cada.
+    const stock = v(r, iStock);
+    if (stock && !armMap[cod].stockavel) armMap[cod].stockavel = stock;
+    const preco = v(r, iPreco);
+    if (preco !== '' && armMap[cod].precoMedio === '') armMap[cod].precoMedio = preco;
+    const entry = { codArm: v(r, iCodArm), nomeArm: v(r, iNomeArm), zona: v(r, iZona), descZona: v(r, iDescZona), um: v(r, iUM), obs: v(r, iObs) };
+    if (entry.nomeArm && !armMap[cod].posicoes.find(p => p.nomeArm === entry.nomeArm && p.descZona === entry.descZona))
+      armMap[cod].posicoes.push(entry);
+  });
+
+  armLoaded = true;
+  markLoaded('z-arm', 'count-arm', fname, Object.keys(armMap).length + ' artigos', 'arm');
+  checkReady();
+}
+
+// ── Etiqueta: regras de negócio (funções puras) ─────────
+// Testadas isoladamente em etiqueta.test.mjs e integracao-etiqueta.test.mjs
+// antes de serem copiadas para aqui.
+//
+// Cor de fundo do código+descrição, por regra de negócio. A ORDEM importa:
+// "a pedido" (rosa) é o caso mais específico e é testado ANTES de amarelo —
+// senão qualquer N cairia logo em amarelo.
+//   Stockável = S           → branco  (artigo de stock)
+//   Stockável = N + Zona ENC → rosa   (artigo a pedido)
+//   Stockável = N            → amarelo (não-stockável)
+function corDaEtiqueta(stockavel, descZonas) {
+  const s = String(stockavel || '').trim().toUpperCase();
+  if (s === 'S') return 'branco';
+  const temEnc = (descZonas || []).some(z => String(z || '').trim().toUpperCase() === 'ENC');
+  if (temEnc) return 'rosa';
+  return 'amarelo';
+}
+
+// Conteúdo do QR Code: código + posição + supermercado, separados por "|".
+function dadosQrEtiqueta(cod, posicao, supermercado) {
+  return [cod || '', posicao || '', supermercado || ''].join('|');
+}
+
+// Preço médio formatado (vírgula decimal PT, símbolo €). Vazio → travessão.
+function formatarPreco(valor) {
+  if (valor === '' || valor === undefined || valor === null) return '—';
+  const num = Number(valor);
+  if (!isFinite(num)) return '—';
+  return num.toFixed(2).replace('.', ',') + ' €';
+}
+
+// ── Persistência local (IndexedDB) ──────────────────────
+// Guarda os bytes originais dos dois ficheiros Excel no próprio
+// dispositivo, para não ser preciso voltar a carregá-los depois de um
+// refresh, fechar/abrir o browser, ou reabrir a app instalada. Nada disto
+// sai do dispositivo — é só armazenamento local do browser (IndexedDB, que
+// ao contrário do localStorage aguenta bem ficheiros de vários MB).
+// Guarda-se sempre o ficheiro em bruto (não os dados já processados) para
+// reutilizar exatamente a mesma lógica de leitura (processFileBuffer) nos
+// dois casos — upload manual e carregamento automático — evitando ter duas
+// vias de processamento que podiam divergir no futuro.
+const DB_NOME  = 'consulta-artigos-db';
+const DB_STORE = 'ficheiros';
+
+function abrirFicheirosDB() {
+  return new Promise((resolve, reject) => {
+    if (!('indexedDB' in window)) { reject(new Error('IndexedDB não suportado neste browser')); return; }
+    const req = indexedDB.open(DB_NOME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(DB_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+// Guarda (ou substitui, se já existir) os bytes de um ficheiro para o tipo
+// indicado ('super' ou 'arm'). Falhas aqui nunca interrompem a app — só
+// significam que, da próxima vez, vai ser preciso carregar o ficheiro à
+// mão outra vez, tal como acontecia antes desta funcionalidade existir.
+async function guardarFicheiroDB(tipo, arrayBuffer, fname) {
+  try {
+    const db = await abrirFicheirosDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).put({ arrayBuffer, fname }, tipo);
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
+    });
+    db.close();
+  } catch (err) {
+    console.warn('Não foi possível guardar o ficheiro localmente (a app continua a funcionar normalmente, só sem retomar automaticamente da próxima vez):', err);
+  }
+}
+
+// Lê o registo guardado para um tipo ('super' ou 'arm'). Devolve null se
+// não houver nada guardado, ou se a leitura falhar por qualquer razão
+// (ex: IndexedDB bloqueado em modo de navegação privada).
+async function lerFicheiroDB(tipo) {
+  try {
+    const db = await abrirFicheirosDB();
+    const resultado = await new Promise((resolve, reject) => {
+      const tx  = db.transaction(DB_STORE, 'readonly');
+      const req = tx.objectStore(DB_STORE).get(tipo);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror   = () => reject(req.error);
+    });
+    db.close();
+    return resultado;
+  } catch (err) {
+    return null;
+  }
+}
+
+// Apaga tudo o que estiver guardado — usado pelo link "Esquecer ficheiros".
+async function apagarFicheirosDB() {
+  try {
+    const db = await abrirFicheirosDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).clear();
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
+    });
+    db.close();
+  } catch (err) {
+    console.warn('Não foi possível apagar os ficheiros guardados:', err);
+  }
+}
+
+// Ao abrir a app (ou dar refresh), tenta retomar automaticamente a partir
+// do que estiver guardado em IndexedDB — sem pedir upload outra vez. Se só
+// houver um dos dois ficheiros guardados, o outro continua a ser pedido
+// normalmente no ecrã de upload (só o cartão em falta fica por preencher).
+// Qualquer falha aqui cai em segurança para o comportamento anterior a
+// esta funcionalidade: mostrar o ecrã de upload vazio.
+async function tentarCarregarGuardado() {
+  const statusEl = document.getElementById('auto-load-status');
+  try {
+    const [regSuper, regArm] = await Promise.all([lerFicheiroDB('super'), lerFicheiroDB('arm')]);
+    if (!regSuper && !regArm) return;
+
+    statusEl.style.display = 'block';
+    if (regSuper) processFileBuffer(regSuper.arrayBuffer, 'super', regSuper.fname);
+    if (regArm)   processFileBuffer(regArm.arrayBuffer, 'arm', regArm.fname);
+  } catch (err) {
+    console.warn('Não foi possível retomar os ficheiros guardados anteriormente:', err);
+  } finally {
+    statusEl.style.display = 'none';
+  }
+}
+
+// Link "Esquecer ficheiros": apaga o que estiver guardado no dispositivo e
+// recarrega a app, voltando ao ecrã de upload vazio. Um simples reload é a
+// forma mais segura de repor todo o estado em memória (superMap, armMap,
+// modo de pesquisa, etc.) sem ter de o fazer campo a campo.
+async function esquecerFicheiros() {
+  const confirmado = confirm('Esquecer os ficheiros guardados neste dispositivo? Da próxima vez vai ser preciso carregá-los outra vez.');
+  if (!confirmado) return;
+  await apagarFicheirosDB();
+  location.reload();
+}
+
+window.addEventListener('DOMContentLoaded', tentarCarregarGuardado);
+
+
+let uploadLabels = { super: '', arm: '' };
+
+function markLoaded(zoneId, countId, fname, info, tipo) {
+  const zone = document.getElementById(zoneId);
+  zone.classList.add('loaded');
+  zone.onclick = null;
+  const countEl = document.getElementById(countId);
+  const label = fname.split('/').pop() + ' — ' + info;
+  countEl.textContent = '✓ ' + label;
+  countEl.style.display = 'block';
+  uploadLabels[tipo] = label;
+}
+
+function checkReady() {
+  if (superLoaded && armLoaded) {
+    const inp = document.getElementById(activeSearchInputId());
+    document.getElementById('mode-btn-artigo').disabled = false;
+    document.getElementById('mode-btn-super').disabled = false;
+    document.getElementById('mode-btn-etiqueta').disabled = false;
+    inp.disabled = false;
+    document.getElementById('search-input-artigo').disabled = false;
+    document.getElementById('search-input-super').disabled = false;
+    document.getElementById('search-input-etiqueta').disabled = false;
+    inp.focus();
+    updateScanUI();
+    // Com os dois ficheiros carregados, a zona de upload deixa de fazer
+    // falta no ecrã — colapsa numa barra fina para dar mais espaço aos
+    // resultados. "Trocar ficheiros" reabre-a sem perder os dados já lidos.
+    document.getElementById('ub-files').textContent = uploadLabels.super + '  ·  ' + uploadLabels.arm;
+    document.getElementById('upload-section').style.display = 'none';
+    document.getElementById('upload-bar').style.display = 'flex';
+  }
+}
+
+// ── Search mode (Artigos vs Supermercados/Serviços) ─────
+// Cada modo tem a sua própria caixa de texto; só uma está visível de cada
+// vez. Trocar de modo limpa o texto e os resultados do modo anterior, para
+// não ficar a mostrar resultados de um tipo de pesquisa diferente.
+let searchMode = 'artigo';
+
+// No modo "Supermercados / Serviços", o resultado passa a ser escolhido
+// por badge (em vez de mostrar logo todas as fichas encontradas). Esta
+// variável guarda QUAL supermercado/serviço está escolhido — formato
+// "tipo|cod|nome" — e é nulo quando ainda não há escolha.
+let selectedIndexKey = null;
+
+// Modo "Etiqueta": fluxo de dois passos — primeiro escolher o supermercado
+// (etqSuperKey, formato "cod|nome"), depois escolher o artigo (etqArtigoCod).
+// A posição da etiqueta vem do par (supermercado, artigo), por isso são
+// precisos os dois; o código/descrição/preço/stockável vêm do artigo (ARM).
+let etqSuperKey  = null;
+let etqArtigoCod = null;
+
+function activeSearchInputId() {
+  if (searchMode === 'artigo')   return 'search-input-artigo';
+  if (searchMode === 'etiqueta') return 'search-input-etiqueta';
+  return 'search-input-super';
+}
+
+// Botão de câmara só faz sentido no modo "Artigos" (é onde se pesquisa por
+// código de artigo, e os códigos são só números). Fica ainda por cima
+// desativado enquanto os dois ficheiros não estiverem carregados, tal como
+// a caixa de pesquisa.
+function updateScanUI() {
+  const btn = document.getElementById('btn-scan');
+  btn.style.display = searchMode === 'artigo' ? 'inline-flex' : 'none';
+  btn.disabled = !(superLoaded && armLoaded);
+}
+
+function setSearchMode(mode) {
+  if (mode === searchMode) return;
+  searchMode = mode;
+
+  document.getElementById('mode-btn-artigo').classList.toggle('active', mode === 'artigo');
+  document.getElementById('mode-btn-super').classList.toggle('active', mode === 'super');
+  document.getElementById('mode-btn-etiqueta').classList.toggle('active', mode === 'etiqueta');
+  document.getElementById('search-input-artigo').style.display   = mode === 'artigo'   ? 'block' : 'none';
+  document.getElementById('search-input-super').style.display    = mode === 'super'    ? 'block' : 'none';
+  document.getElementById('search-input-etiqueta').style.display = mode === 'etiqueta' ? 'block' : 'none';
+  hideOcrMsg();
+  updateScanUI();
+
+  // Cada modo mantém o seu próprio texto e (no caso de "Supermercados /
+  // Serviços") a sua seleção — não se limpa nada ao trocar de modo. Voltar
+  // a um modo mostra outra vez o que lá estava, tal como se nunca se tivesse
+  // saído dele.
+  const inp = document.getElementById(activeSearchInputId());
+  if (!inp.disabled) inp.focus();
+  doSearch();
+}
+
+// Reabre a zona de upload para permitir trocar um ou os dois ficheiros.
+// Não apaga os dados já carregados: se só se substituir um ficheiro, o
+// outro continua disponível para pesquisa.
+function showUploadSection() {
+  document.getElementById('upload-section').style.display = 'block';
+  document.getElementById('upload-bar').style.display = 'none';
+}
+
+// Remove acentos para tornar a comparação mais tolerante (ex: "Povoa"
+// encontra "Póvoa"). Também baixa para minúsculas.
+function normaliza(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// ── Search ─────────────────────────────────────────────
+function getNome(cod) {
+  return (superMap[cod] && superMap[cod].nome) || (armMap[cod] && armMap[cod].descArtigo) || '';
+}
+
+// Devolve os supermercados associados ao artigo que batem com o termo de
+// pesquisa (código ou descrição). Ao contrário de um simples true/false,
+// devolve os próprios supermercados porque o modo "Supermercados / Serviços"
+// precisa de saber QUAL supermercado bateu, para construir o índice.
+function supersQueBatem(cod, q) {
+  const supers = (superMap[cod] && superMap[cod].supermercados) || [];
+  return supers.filter(sv =>
+    (sv.nome && normaliza(sv.nome).includes(q)) ||
+    (sv.cod  && normaliza(sv.cod).includes(q))
+  );
+}
+
+// Devolve os serviços associados ao artigo que batem com o termo de
+// pesquisa (código ou descrição). Mesma lógica de supersQueBatem.
+function servicosQueBatem(cod, q) {
+  const servicos = (superMap[cod] && superMap[cod].servicos) || [];
+  return servicos.filter(sv =>
+    (sv.nome && normaliza(sv.nome).includes(q)) ||
+    (sv.cod  && normaliza(sv.cod).includes(q))
+  );
+}
+
+// Modo "Artigos": encontra só por código ou descrição do artigo — nunca
+// por supermercado ou serviço.
+function matchArtigo(cod, q) {
+  return normaliza(cod).includes(q) || normaliza(getNome(cod)).includes(q);
+}
+
+// Constrói o índice de supermercados que batem com a pesquisa. Cada
+// supermercado encontrado agrupa todos os artigos que lá existem, com o
+// respetivo tipo de caixa + quantidade (já é a Quantidade Total máxima
+// desse tipo de caixa NESSE supermercado, porque superMap[].caixas já vem
+// agregado por (tipo de caixa, supermercado) desde o carregamento do
+// ficheiro — ver aggregateCaixas) e a posição em armazém.
+function buildSupermercadoIndex(q) {
+  const idx = new Map(); // chave: cod+nome do supermercado
+  Object.keys(superMap).forEach(cod => {
+    supersQueBatem(cod, q).forEach(sv => {
+      const key = sv.cod + '|' + sv.nome;
+      if (!idx.has(key)) idx.set(key, { cod: sv.cod, nome: sv.nome, grupo: sv.grupo, artigos: [] });
+      idx.get(key).artigos.push({
+        cod,
+        nome: getNome(cod),
+        caixas: (superMap[cod].caixas || []).filter(c => c.superNome === sv.nome),
+        posicao: sv.posicao,
+        posicaoTexto: sv.posicao || '',
+        grupo: sv.grupo || '',
+        area: sv.area || ''
+      });
+    });
+  });
+  return [...idx.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// Constrói o índice de serviços que batem com a pesquisa, no mesmo formato
+// de buildSupermercadoIndex. Cada linha do ficheiro T_supermercados tem
+// sempre um Serviço associado (mesmo sendo uma linha "por supermercado"),
+// por isso as caixas mostradas aqui são só as desse serviço em concreto —
+// usa-se a lista já agregada por serviço (caixasPorServico), filtrada pelo
+// nome do serviço da ficha. A "Posição" já vinha associada à própria linha
+// artigo+serviço no ficheiro de origem — por isso usa-se aqui, tal como no
+// índice de supermercado, em vez da posição de armazém.
+function buildServicoIndex(q) {
+  const idx = new Map();
+  Object.keys(superMap).forEach(cod => {
+    servicosQueBatem(cod, q).forEach(sv => {
+      const key = sv.cod + '|' + sv.nome;
+      if (!idx.has(key)) idx.set(key, { cod: sv.cod, nome: sv.nome, artigos: [] });
+      idx.get(key).artigos.push({
+        cod,
+        nome: getNome(cod),
+        caixas: caixasDoServico(superMap[cod].caixasPorServico || [], sv.nome),
+        posicaoTexto: sv.posicao || '',
+        area: sv.area || '',
+        grupo: sv.grupo || ''
+      });
+    });
+  });
+  return [...idx.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// ── Ordenação do índice (Supermercados / Serviços) ──────
+// Aplica-se às tabelas do índice (buildSupermercadoIndex / buildServicoIndex).
+// Estado global e partilhado por todas as fichas do índice — ordenar por
+// Código, Artigo ou Posição afeta todas ao mesmo tempo. Clicar outra vez no
+// mesmo cabeçalho inverte a direção; clicar num cabeçalho diferente muda o
+// campo e volta a começar em ascendente.
+let indexSortField = 'artigo'; // 'cod' | 'artigo' | 'posicao'
+let indexSortDir   = 'asc';    // 'asc' | 'desc'
+
+function compareIndexArtigos(a, b) {
+  let va, vb;
+  if (indexSortField === 'cod')            { va = a.cod;           vb = b.cod; }
+  else if (indexSortField === 'posicao')   { va = a.posicaoTexto;  vb = b.posicaoTexto; }
+  else /* 'artigo' */                      { va = a.nome;          vb = b.nome; }
+  const cmp = String(va || '').localeCompare(String(vb || ''), 'pt', { numeric: true, sensitivity: 'base' });
+  return indexSortDir === 'asc' ? cmp : -cmp;
+}
+
+function sortArrowHtml(field) {
+  if (indexSortField !== field) return '';
+  return indexSortDir === 'asc' ? ' \u25B2' : ' \u25BC';
+}
+
+function setIndexSort(field) {
+  if (indexSortField === field) {
+    indexSortDir = indexSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    indexSortField = field;
+    indexSortDir = 'asc';
+  }
+  doSearch();
+}
+
+// Filtro genérico por dimensão (Local ou Área) nas fichas do índice: mostra
+// só as linhas da tabela cujo valor da dimensão corresponde ao botão
+// clicado ("Todas" remove o filtro dessa dimensão). Se as duas dimensões
+// tiverem filtro ativo ao mesmo tempo, uma linha só fica visível se bater
+// com AMBAS. Feito por manipulação direta do DOM (sem re-pesquisar) para
+// não perder a posição de scroll nem recalcular o índice inteiro só para
+// filtrar uma ficha.
+function toggleFiltro(btn) {
+  const card = btn.closest('.artigo-card');
+  const dim  = btn.dataset.dim; // 'grupo' ou 'area'
+  card.querySelectorAll(`.filtro-btn[data-dim="${dim}"]`).forEach(b => b.classList.toggle('active', b === btn));
+  aplicarFiltros(card);
+}
+
+function aplicarFiltros(card) {
+  const dims = [...new Set([...card.querySelectorAll('.filtro-btn')].map(b => b.dataset.dim))];
+  const ativos = {};
+  dims.forEach(dim => {
+    const btnAtivo = card.querySelector(`.filtro-btn[data-dim="${dim}"].active`);
+    ativos[dim] = btnAtivo ? btnAtivo.dataset.val : '';
+  });
+  const rows = card.querySelectorAll('table.cx tbody tr');
+  let visiveis = 0;
+  rows.forEach(tr => {
+    const bate = dims.every(dim => !ativos[dim] || tr.dataset[dim] === ativos[dim]);
+    tr.style.display = bate ? '' : 'none';
+    if (bate) visiveis++;
+  });
+  const countEl = card.querySelector('.sec-count');
+  if (countEl) {
+    const total = countEl.dataset.total;
+    const algumFiltroAtivo = dims.some(dim => ativos[dim]);
+    countEl.textContent = algumFiltroAtivo ? `${visiveis} de ${total} artigo(s)` : `${total} artigo(s)`;
+  }
+}
+
+// Debounce: espera que a pessoa pare de escrever por 150ms antes de
+// pesquisar. Com milhares de linhas, evita recalcular a cada tecla premida
+// muito depressa (ex: ao colar texto ou escrever rápido).
+let searchTimer = null;
+function onSearchInput() {
+  clearTimeout(searchTimer);
+  selectedIndexKey = null;
+  etqSuperKey = null;
+  etqArtigoCod = null;
+  searchTimer = setTimeout(doSearch, 150);
+}
+
+// Com poucos caracteres, uma pesquisa em milhares de linhas devolve
+// demasiados resultados para ser útil (ex: "m" sozinho pode encontrar quase
+// tudo). Por isso só se pesquisa a partir de 2 caracteres.
+const MIN_CHARS = 2;
+
+function doSearch() {
+  const qRaw = document.getElementById(activeSearchInputId()).value.trim();
+  const q = normaliza(qRaw);
+  document.getElementById('btn-clear').style.display = qRaw ? 'inline-flex' : 'none';
+
+  if (!q) { document.getElementById('results').style.display = 'none'; return; }
+
+  if (q.length < MIN_CHARS) {
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('results-header').textContent = `Escreve pelo menos ${MIN_CHARS} caracteres…`;
+    document.getElementById('cards-container').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('results').style.display = 'block';
+  const container = document.getElementById('cards-container');
+
+  if (searchMode === 'artigo') {
+    const allCods = [...new Set([...Object.keys(superMap), ...Object.keys(armMap)])];
+    const found   = allCods.filter(cod => matchArtigo(cod, q));
+
+    document.getElementById('results-header').textContent = found.length
+      ? found.length + ' resultado(s) encontrado(s)' + (found.length > 30 ? ' — mostrando os primeiros 30' : '')
+      : '';
+
+    if (!found.length) {
+      container.innerHTML = emptyStateHtml(qRaw, 'artigo');
+      return;
+    }
+    container.innerHTML = found.slice(0, 30).map(renderCard).join('');
+    return;
+  }
+
+  if (searchMode === 'etiqueta') {
+    renderModoEtiqueta(q, qRaw, container);
+    return;
+  }
+
+  // Modo "Supermercados / Serviços": em vez de despejar logo todas as
+  // fichas encontradas, mostra-se um badge por supermercado/serviço
+  // encontrado — a pessoa escolhe qual quer ver, e só essa ficha (com o
+  // índice de artigos) é desenhada abaixo. Mesma lógica de "clicar para
+  // escolher, com estado ativo" já usada nos badges de Área da ficha de
+  // Serviço.
+  const gruposSuper   = buildSupermercadoIndex(q).map(g => ({ tipo: 'supermercado', dados: g }));
+  const gruposServico = buildServicoIndex(q).map(g => ({ tipo: 'servico', dados: g }));
+  const grupos = [...gruposSuper, ...gruposServico];
+
+  document.getElementById('results-header').textContent = grupos.length
+    ? grupos.length + ' resultado(s) encontrado(s)' + (grupos.length > 30 ? ' — mostrando os primeiros 30' : '')
+    : '';
+
+  if (!grupos.length) {
+    selectedIndexKey = null;
+    container.innerHTML = emptyStateHtml(qRaw, 'supermercado ou serviço');
+    return;
+  }
+
+  const gruposMostrados = grupos.slice(0, 30);
+  const picker = renderIndexPicker(gruposMostrados);
+
+  const escolhido = gruposMostrados.find(g => grupoKey(g) === selectedIndexKey);
+  const detalhe = escolhido
+    ? renderSuperGroupCard(escolhido.dados, escolhido.tipo)
+    : `<div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+        <p>Escolhe um supermercado ou serviço acima para ver os artigos.</p>
+      </div>`;
+
+  container.innerHTML = picker + detalhe;
+}
+
+// Identificador único de um grupo do índice (supermercado ou serviço),
+// usado para saber qual badge está escolhido e para o marcar como "active".
+function grupoKey(g) {
+  return g.tipo + '|' + g.dados.cod + '|' + g.dados.nome;
+}
+
+// Ficha com um badge por supermercado/serviço encontrado. Reaproveita a
+// mesma classe .area-btn dos botões de filtro por Área, para manter a
+// mesma linguagem visual de "escolher uma opção".
+function renderIndexPicker(grupos) {
+  const porTipo = { supermercado: [], servico: [] };
+  grupos.forEach(g => porTipo[g.tipo].push(g));
+
+  const secao = (tipo, label) => {
+    const lista = porTipo[tipo];
+    if (!lista.length) return '';
+    const badges = lista.map(g => {
+      const key = grupoKey(g);
+      const ativo = key === selectedIndexKey ? ' active' : '';
+      return `<button type="button" class="area-btn${ativo}" data-key="${escHtml(key)}" onclick="selectGrupoIndex(this.dataset.key)">${escHtml(g.dados.nome)}</button>`;
+    }).join('');
+    return `<div class="super-group">
+      <div class="super-group-label">${escHtml(label)} (${lista.length})</div>
+      <div class="area-filter-row">${badges}</div>
+    </div>`;
+  };
+
+  return `<div class="artigo-card">
+    <div class="artigo-card-body">
+      ${secao('supermercado', 'Supermercados')}
+      ${secao('servico', 'Serviços')}
+    </div>
+  </div>`;
+}
+
+// Clique num badge do picker: escolhe esse supermercado/serviço e
+// redesenha (a pesquisa em si não muda, só a ficha escolhida).
+function selectGrupoIndex(key) {
+  selectedIndexKey = key;
+  doSearch();
+}
+
+// ── Modo Etiqueta ───────────────────────────────────────
+// Fluxo: (1) escolher supermercado por badge, (2) escolher artigo desse
+// supermercado, (3) gerar a etiqueta 23x80mm. Reaproveita
+// buildSupermercadoIndex para saber que artigos existem em cada
+// supermercado e qual a posição do artigo nesse supermercado.
+function renderModoEtiqueta(q, qRaw, container) {
+  const grupos = buildSupermercadoIndex(q);
+
+  document.getElementById('results-header').textContent = grupos.length
+    ? grupos.length + ' supermercado(s) encontrado(s)' + (grupos.length > 30 ? ' — mostrando os primeiros 30' : '')
+    : '';
+
+  if (!grupos.length) {
+    etqSuperKey = null; etqArtigoCod = null;
+    container.innerHTML = emptyStateHtml(qRaw, 'supermercado');
+    return;
+  }
+
+  const mostrados = grupos.slice(0, 30);
+  const superEscolhido = mostrados.find(g => (g.cod + '|' + g.nome) === etqSuperKey);
+
+  // Passo 1: badges de supermercado (mesma linguagem visual do picker do
+  // índice — classe .area-btn).
+  const badgesSuper = mostrados.map(g => {
+    const key = g.cod + '|' + g.nome;
+    const ativo = key === etqSuperKey ? ' active' : '';
+    return `<button type="button" class="area-btn${ativo}" data-key="${escHtml(key)}" onclick="selectEtqSupermercado(this.dataset.key)">${escHtml(g.nome)}</button>`;
+  }).join('');
+
+  let passo2 = '';
+  if (superEscolhido) {
+    // Passo 2: um botão por artigo desse supermercado.
+    const botoesArtigo = superEscolhido.artigos
+      .slice()
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'))
+      .map(art => {
+        const ativo = art.cod === etqArtigoCod ? ' active' : '';
+        return `<button type="button" class="area-btn etq-artigo-btn${ativo}" data-cod="${escHtml(art.cod)}" onclick="selectEtqArtigo(this.dataset.cod)">${escHtml(art.cod)} — ${escHtml(art.nome || '—')}</button>`;
+      }).join('');
+    passo2 = `<div class="super-group">
+      <div class="super-group-label">Artigo (${superEscolhido.artigos.length})</div>
+      <div class="area-filter-row">${botoesArtigo}</div>
+    </div>`;
+  }
+
+  // Passo 3: a etiqueta em si (só quando há artigo escolhido).
+  let etiquetaHtml = '';
+  if (superEscolhido && etqArtigoCod) {
+    const art = superEscolhido.artigos.find(a => a.cod === etqArtigoCod);
+    if (art) etiquetaHtml = renderEtiqueta(art.cod, superEscolhido.nome, art.posicaoTexto || art.posicao || '');
+  }
+
+  container.innerHTML = `<div class="artigo-card"><div class="artigo-card-body">
+    <div class="super-group">
+      <div class="super-group-label">Supermercado (${mostrados.length})</div>
+      <div class="area-filter-row">${badgesSuper}</div>
+    </div>
+    ${passo2}
+  </div></div>${etiquetaHtml}`;
+}
+
+function selectEtqSupermercado(key) {
+  etqSuperKey = key;
+  // Mantém o artigo escolhido se ele ainda existir neste supermercado;
+  // caso contrário limpa. (Reselecionar o mesmo supermercado não perde o
+  // artigo já escolhido.)
+  doSearch();
+}
+
+function selectEtqArtigo(cod) {
+  etqArtigoCod = cod;
+  doSearch();
+}
+
+// Desenha a etiqueta 23x80mm: 4 colunas lado a lado —
+//   [QR] [Posição / código / SGCIM] [Descrição] [Preço médio]
+// A cor (branco/amarelo/rosa) pinta só o código e a descrição, por regra
+// de negócio (corDaEtiqueta). O QR contém código|posição|supermercado.
+function renderEtiqueta(cod, superNome, posicao) {
+  const arm = armMap[cod] || { descArtigo: '', posicoes: [], stockavel: '', precoMedio: '' };
+  const descZonas = (arm.posicoes || []).map(p => p.descZona);
+  const cor = corDaEtiqueta(arm.stockavel, descZonas);
+  const preco = formatarPreco(arm.precoMedio);
+  const qrDados = dadosQrEtiqueta(cod, posicao, superNome);
+
+  // QR em SVG (crisp na impressão), gerado pela lib embutida (offline).
+  let qrSvg = '';
+  try {
+    const qr = window.qrcode(0, 'M');
+    qr.addData(qrDados);
+    qr.make();
+    qrSvg = qr.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+  } catch (err) {
+    qrSvg = '<span class="no-data">QR indisponível</span>';
+  }
+
+  return `<div class="etiqueta-wrap">
+    <div class="etiqueta cor-${cor}">
+      <div class="etq-qr">${qrSvg}</div>
+      <div class="etq-meio">
+        <div class="etq-pos">${escHtml(posicao || '—')}</div>
+        <div class="etq-cod-cell">${escHtml(cod)}</div>
+        <div class="etq-sgcim">SGCIM</div>
+      </div>
+      <div class="etq-descricao">${escHtml(arm.descArtigo || '—')}</div>
+      <div class="etq-preco">${escHtml(preco)}</div>
+    </div>
+    <button type="button" class="etq-print-btn" onclick="imprimirEtiqueta()">Imprimir etiqueta</button>
+  </div>`;
+}
+
+// Impressão: abre o diálogo de impressão do browser. O CSS @media print
+// isola só a etiqueta (esconde o resto da página), para sair no tamanho
+// 23x80mm sem cabeçalhos nem barras da app.
+function imprimirEtiqueta() {
+  window.print();
+}
+
+// Faz scroll até à zona de resultados — usado pelos dois saltos recíprocos
+// (badge de supermercado → índice; código de artigo no índice → ficha),
+// para a pessoa ver logo o resultado sem ter de procurar no ecrã.
+function scrollParaResultados() {
+  const resultsEl = document.getElementById('results');
+  if (resultsEl.scrollIntoView) resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Clique num badge de supermercado dentro da ficha de artigo (modo
+// "Artigos", secção "Supermercados"): salta diretamente para o modo
+// "Supermercados / Serviços", preenche a pesquisa com o nome desse
+// supermercado e já mostra a sua ficha de índice escolhida — sem a pessoa
+// ter de escrever nada nem voltar a clicar no badge do picker. Reaproveita
+// o mesmo fluxo de setSearchMode + doSearch + selectedIndexKey já usados
+// pela pesquisa normal de "Supermercados / Serviços".
+function irParaSupermercadoNoIndice(cod, nome) {
+  searchMode = 'super';
+  document.getElementById('mode-btn-artigo').classList.remove('active');
+  document.getElementById('mode-btn-super').classList.add('active');
+  document.getElementById('search-input-artigo').style.display = 'none';
+  document.getElementById('search-input-super').style.display = 'block';
+  hideOcrMsg();
+  updateScanUI();
+
+  const inp = document.getElementById('search-input-super');
+  inp.value = nome;
+  document.getElementById('btn-clear').style.display = 'inline-flex';
+
+  selectedIndexKey = 'supermercado|' + cod + '|' + nome;
+  doSearch();
+
+  scrollParaResultados();
+}
+
+// Clique no código de um artigo dentro da tabela do índice (modo
+// "Supermercados / Serviços"): salta diretamente para o modo "Artigos",
+// preenche a pesquisa com o código desse artigo e já mostra a sua ficha —
+// mesma lógica de irParaSupermercadoNoIndice, mas no sentido inverso.
+function irParaArtigoNoIndice(cod) {
+  searchMode = 'artigo';
+  document.getElementById('mode-btn-artigo').classList.add('active');
+  document.getElementById('mode-btn-super').classList.remove('active');
+  document.getElementById('search-input-artigo').style.display = 'block';
+  document.getElementById('search-input-super').style.display = 'none';
+  hideOcrMsg();
+  updateScanUI();
+
+  const inp = document.getElementById('search-input-artigo');
+  inp.value = cod;
+  document.getElementById('btn-clear').style.display = 'inline-flex';
+
+  doSearch();
+
+  scrollParaResultados();
+}
+
+// Mensagem de "sem resultados", reutilizada pelos dois modos de pesquisa.
+function emptyStateHtml(qRaw, tipoLabel) {
+  return `<div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+    <p>Nenhum ${escHtml(tipoLabel)} encontrado para "<strong>${escHtml(qRaw)}</strong>"</p>
+  </div>`;
+}
+
+function clearSearch() {
+  clearTimeout(searchTimer);
+  selectedIndexKey = null;
+  document.getElementById(activeSearchInputId()).value = '';
+  document.getElementById('btn-clear').style.display = 'none';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById(activeSearchInputId()).focus();
+}
+
+// ── Scan ao vivo (OCR) ───────────────────────────────────
+// Lê o código de artigo apontando a câmara diretamente à etiqueta, em vez
+// de tirar uma única foto. Mostra o candidato encontrado e só preenche a
+// caixa de pesquisa quando a pessoa confirma — nunca pesquisa sozinho.
+//
+// Três melhorias de precisão em relação à primeira versão:
+// (A) motor de OCR configurado para só reconhecer dígitos, em modo "linha
+//     única", e criado uma única vez (não a cada tentativa);
+// (B) cada tentativa recorta só a zona da moldura tracejada, amplia-a e
+//     converte-a a preto e branco antes de enviar para o OCR;
+// (C) um candidato só é mostrado como "encontrado" depois de a MESMA
+//     leitura sair 2 vezes seguidas.
+
+// Letras que o OCR troca frequentemente por dígitos parecidos, aplicado
+// antes de descartar tudo o que não é dígito. Testado isoladamente em
+// ocr-helpers.test.mjs antes de ser copiado para aqui.
+const OCR_CONFUSOES = { O: '0', o: '0', I: '1', l: '1', S: '5', s: '5', B: '8' };
+
+function extrairDigitos(textoOcr) {
+  const corrigido = String(textoOcr || '').replace(/[OoIlSsB]/g, c => OCR_CONFUSOES[c]);
+  return corrigido.replace(/\D/g, '');
+}
+
+// Só aceita um candidato com dígitos suficientes (por omissão, 4), para
+// não mostrar "ruído" de 1 número solto lido por engano.
+function digitosValidos(textoOcr, minDigitos = 4) {
+  const digitos = extrairDigitos(textoOcr);
+  return digitos.length >= minDigitos ? digitos : '';
+}
+
+// (B) Calcula, em pixels do vídeo original, o retângulo que corresponde à
+// moldura tracejada mostrada por cima do vídeo — tem de imitar o
+// "object-fit: cover" do CSS (o vídeo é primeiro cortado ao meio para
+// caber no rácio do .scan-video-wrap, e só depois se aplica a % da
+// moldura). Testado isoladamente em ocr-helpers.test.mjs.
+const SCAN_WRAP_ASPECT = 3 / 4; // igual ao aspect-ratio do .scan-video-wrap no CSS
+const SCAN_FRAME_INSET = { top: 0.40, bottom: 0.40, left: 0.08, right: 0.08 }; // igual ao .scan-frame-hint
+
+function calcularRetanguloRecorte(videoWidth, videoHeight, wrapAspect, inset) {
+  const videoAspect = videoWidth / videoHeight;
+  let coverWidth, coverHeight, offsetX, offsetY;
+  if (videoAspect > wrapAspect) {
+    coverHeight = videoHeight;
+    coverWidth = videoHeight * wrapAspect;
+    offsetX = (videoWidth - coverWidth) / 2;
+    offsetY = 0;
+  } else {
+    coverWidth = videoWidth;
+    coverHeight = videoWidth / wrapAspect;
+    offsetX = 0;
+    offsetY = (videoHeight - coverHeight) / 2;
+  }
+  return {
+    x: Math.round(offsetX + coverWidth * inset.left),
+    y: Math.round(offsetY + coverHeight * inset.top),
+    width: Math.round(coverWidth * (1 - inset.left - inset.right)),
+    height: Math.round(coverHeight * (1 - inset.top - inset.bottom)),
+  };
+}
+
+// (B) Converte a preto e branco "puro" (threshold), para ajudar o OCR a
+// distinguir melhor os traços do número do fundo da etiqueta. Testado
+// isoladamente em ocr-helpers.test.mjs.
+function aplicarLimiarPB(data, limiar = 150) {
+  for (let i = 0; i < data.length; i += 4) {
+    const cinza = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+    const valor = cinza >= limiar ? 255 : 0;
+    data[i] = valor;
+    data[i + 1] = valor;
+    data[i + 2] = valor;
+  }
+  return data;
+}
+
+// Quanto se amplia a zona recortada antes do OCR — texto pequeno lê pior;
+// ampliar ajuda o motor a distinguir melhor os traços de cada dígito.
+const SCAN_AMPLIACAO = 2;
+
+// (C) Só confirma um candidato depois de a mesma leitura aparecer 2 vezes
+// seguidas — reduz o risco de mostrar um número errado por uma leitura
+// pontual mal feita. Testado isoladamente em ocr-helpers.test.mjs.
+function processarLeituraConsecutiva(estadoAnterior, novaLeitura) {
+  if (!novaLeitura) return { ultima: '', count: 0, confirmado: false };
+  if (novaLeitura === estadoAnterior.ultima) {
+    const count = estadoAnterior.count + 1;
+    return { ultima: novaLeitura, count, confirmado: count >= 2 };
+  }
+  return { ultima: novaLeitura, count: 1, confirmado: false };
+}
+
+function showOcrMsg(texto) {
+  const el = document.getElementById('ocr-msg');
+  el.textContent = texto;
+  el.style.display = 'block';
+}
+
+function hideOcrMsg() {
+  document.getElementById('ocr-msg').style.display = 'none';
+}
+
+// Estado do scan ao vivo: a stream da câmara, o "worker" do Tesseract
+// (criado uma única vez por sessão de scan — ver abrirScanAoVivo), se o
+// ciclo de leitura está ativo, e o estado de confirmação por 2 leituras
+// seguidas (ver processarLeituraConsecutiva).
+let scanStream = null;
+let scanWorker = null;
+let scanBarcodeReader = null;
+let scanLoopAtivo = false;
+let scanCandidatoAtual = '';
+let scanEstadoLeitura = { ultima: '', count: 0 };
+
+// Tempo de espera entre tentativas de leitura. Isto é A PARTIR do fim da
+// tentativa anterior (nunca em paralelo), para não sobrecarregar o
+// aparelho com pedidos de OCR acumulados.
+const SCAN_INTERVALO_MS = 1500;
+
+async function abrirScanAoVivo() {
+  hideOcrMsg();
+  const overlay = document.getElementById('scan-overlay');
+  document.getElementById('scan-candidate').style.display = 'none';
+  scanCandidatoAtual = '';
+  scanEstadoLeitura = { ultima: '', count: 0 };
+  document.getElementById('scan-status').textContent = 'A abrir câmara…';
+  overlay.classList.add('open');
+
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch (err) {
+    overlay.classList.remove('open');
+    showOcrMsg('Não foi possível aceder à câmara. Verifica as permissões do browser e tenta novamente.');
+    return;
+  }
+
+  const video = document.getElementById('scan-video');
+  video.srcObject = scanStream;
+  try { await video.play(); } catch (err) { /* alguns browsers já dão play automático */ }
+
+  // (A) Cria o motor de OCR uma única vez por sessão de scan (não a cada
+  // fotograma — recriá-lo seria bem mais lento), já configurado para só
+  // reconhecer dígitos e tratar a imagem como uma linha única de texto.
+  document.getElementById('scan-status').textContent = 'A preparar leitura…';
+  try {
+    scanWorker = await Tesseract.createWorker('eng');
+    await scanWorker.setParameters({
+      tessedit_char_whitelist: '0123456789',
+      tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+    });
+  } catch (err) {
+    fecharScanAoVivo();
+    showOcrMsg('Não foi possível preparar o motor de leitura. Tenta novamente.');
+    return;
+  }
+
+  // Leitor de código de barras (ZXing) — as etiquetas têm um código de
+  // barras Code 39 por baixo do texto, bem mais fiável de ler do que o
+  // texto por OCR. Tentado primeiro em cada fotograma (ver loopScan);
+  // só se não encontrar nada é que se recorre ao OCR como reserva.
+  scanBarcodeReader = new ZXingBrowser.BrowserMultiFormatReader();
+
+  document.getElementById('scan-status').textContent = 'A tentar ler o código…';
+  scanLoopAtivo = true;
+  loopScan();
+}
+
+// Fecha a câmara, liberta o motor de OCR e o leitor de código de barras, e
+// para o ciclo de leitura — usado tanto ao cancelar como depois de
+// confirmar um candidato.
+function fecharScanAoVivo() {
+  scanLoopAtivo = false;
+  if (scanStream) {
+    scanStream.getTracks().forEach(t => t.stop());
+    scanStream = null;
+  }
+  if (scanWorker) {
+    scanWorker.terminate();
+    scanWorker = null;
+  }
+  scanBarcodeReader = null;
+  document.getElementById('scan-overlay').classList.remove('open');
+}
+
+// "Continuar a tentar": descarta o candidato mostrado e volta ao estado de
+// leitura — o ciclo em si nunca parou, só estava à espera de decisão.
+function continuarScan() {
+  document.getElementById('scan-candidate').style.display = 'none';
+  scanCandidatoAtual = '';
+  scanEstadoLeitura = { ultima: '', count: 0 };
+  document.getElementById('scan-status').textContent = 'A tentar ler o código…';
+}
+
+// "Usar este código": fecha a câmara e preenche a pesquisa com o
+// candidato atual — a pessoa ainda revê/corrige antes de pesquisar.
+function usarCandidato() {
+  const digitos = scanCandidatoAtual;
+  fecharScanAoVivo();
+  if (!digitos) return;
+  const inp = document.getElementById('search-input-artigo');
+  inp.value = digitos;
+  inp.focus();
+  inp.select();
+  document.getElementById('btn-clear').style.display = 'inline-flex';
+}
+
+// (B) Prepara o fotograma para o OCR: recorta a zona da moldura, amplia-a
+// e converte-a a preto e branco. Devolve o canvas já pronto a enviar para
+// o Tesseract.
+function prepararFotogramaParaOcr(video, canvas) {
+  const rect = calcularRetanguloRecorte(video.videoWidth, video.videoHeight, SCAN_WRAP_ASPECT, SCAN_FRAME_INSET);
+  canvas.width = rect.width * SCAN_AMPLIACAO;
+  canvas.height = rect.height * SCAN_AMPLIACAO;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, rect.x, rect.y, rect.width, rect.height, 0, 0, canvas.width, canvas.height);
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  aplicarLimiarPB(imgData.data, 150);
+  ctx.putImageData(imgData, 0, 0);
+  return canvas;
+}
+
+// Tenta ler o código de barras (ZXing) no fotograma. Devolve os dígitos
+// encontrados, ou '' se não houver nenhum código de barras nesse
+// fotograma — isto é o caso normal em muitas tentativas (a etiqueta pode
+// estar num ângulo ou distância que ainda não dá para ler), não um erro.
+async function tentarLerCodigoBarras(fotograma) {
+  try {
+    const resultado = await scanBarcodeReader.decodeFromCanvas(fotograma);
+    return digitosValidos(resultado.getText());
+  } catch (err) {
+    return ''; // nenhum código de barras encontrado neste fotograma
+  }
+}
+
+// Ciclo de leitura: prepara um fotograma e tenta, por ordem, código de
+// barras (mais rápido e fiável — ver tentarLerCodigoBarras) e, só se não
+// encontrar nada, OCR de texto como reserva. Espera SCAN_INTERVALO_MS
+// antes de repetir. Continua indefinidamente até scanLoopAtivo passar a
+// false (fechar ou confirmar). Só mostra um candidato como "encontrado"
+// depois de a mesma leitura sair 2 vezes seguidas
+// (processarLeituraConsecutiva) — antes disso, continua a tentar em
+// silêncio, sem interromper nem alarmar com leituras isoladas.
+async function loopScan() {
+  const video  = document.getElementById('scan-video');
+  const canvas = document.getElementById('scan-canvas');
+
+  while (scanLoopAtivo) {
+    if (video.videoWidth) {
+      const fotograma = prepararFotogramaParaOcr(video, canvas);
+
+      let digitos = await tentarLerCodigoBarras(fotograma);
+      if (!scanLoopAtivo) break; // fechado/confirmado enquanto a leitura corria
+
+      if (!digitos) {
+        try {
+          const { data: { text } } = await scanWorker.recognize(fotograma);
+          if (!scanLoopAtivo) break; // fechado/confirmado enquanto o OCR corria
+          digitos = digitosValidos(text);
+        } catch (err) {
+          // Falha pontual de leitura (ex: fotograma desfocado) — ignora-se e
+          // tenta-se outra vez no próximo ciclo, sem interromper o scan.
+        }
+      }
+
+      scanEstadoLeitura = processarLeituraConsecutiva(scanEstadoLeitura, digitos);
+      if (scanEstadoLeitura.confirmado) {
+        scanCandidatoAtual = scanEstadoLeitura.ultima;
+        document.getElementById('scan-candidate-num').textContent = scanCandidatoAtual;
+        document.getElementById('scan-candidate').style.display = 'flex';
+        document.getElementById('scan-status').textContent = 'Código encontrado:';
+      }
+    }
+    if (!scanLoopAtivo) break;
+    await new Promise(resolve => setTimeout(resolve, SCAN_INTERVALO_MS));
+  }
+}
+
+// Ordena uma lista de supermercados pelo nome, por ordem alfabética
+// (localeCompare 'pt' — ignora maiúsculas/minúsculas e acentos). Devolve
+// uma cópia nova, sem alterar o array recebido. Testado isoladamente em
+// sort-supermercados.test.mjs antes de ser copiado para aqui. Usada na
+// ficha de artigo (secção "Supermercados") para ordenar os badges dentro
+// de cada grupo HPH/ACES/Outro.
+function ordenarSupermercadosAlfabeticamente(lista) {
+  return [...lista].sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// ── Render ─────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// Decide, para uma dimensão (Local/grupo ou Área), se se mostra um badge
+// fixo (1 só valor distinto entre os artigos da ficha — nada para filtrar)
+// ou botões de filtro ("Todas" + um por valor, quando há 2 ou mais
+// distintos). Usada da mesma forma nos índices de Supermercado e Serviço,
+// para os dois terem sempre os mesmos badges.
+function dimensaoBadgeOuFiltro(dim, label, artigos) {
+  const valores = [...new Set(artigos.map(a => a[dim]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt'));
+  if (!valores.length) return { badge: '', filtro: '' };
+  if (valores.length === 1) return { badge: ` <span class="super-tag">${escHtml(valores[0])}</span>`, filtro: '' };
+  const botoes = [`<button type="button" class="area-btn filtro-btn active" data-dim="${dim}" data-val="" onclick="toggleFiltro(this)">Todas</button>`]
+    .concat(valores.map(v => `<button type="button" class="area-btn filtro-btn" data-dim="${dim}" data-val="${escHtml(v)}" onclick="toggleFiltro(this)">${escHtml(v)}</button>`))
+    .join('');
+  return { badge: '', filtro: `<div class="area-filter-row" title="${escHtml(label)}">${botoes}</div>` };
+}
+
+// Ficha de índice para o modo "Supermercados / Serviços": uma ficha por
+// supermercado (ou serviço) encontrado, com uma linha por artigo — em vez
+// da ficha de artigo usada no modo "Artigos" (renderCard, abaixo).
+function renderSuperGroupCard(entry, tipo) {
+  const isSuper = tipo === 'supermercado';
+  const labelTipo = isSuper ? 'Supermercado' : 'Serviço';
+  const posLabel = isSuper ? 'Posição no supermercado' : 'Posição no serviço';
+
+  // Local (HPH/ACES) e Área tratados da mesma forma nos dois índices: se
+  // os artigos da ficha só têm um valor distinto, mostra-se como badge
+  // fixo junto ao nome (não há nada para filtrar); se há mais que um,
+  // mostra-se como botões de filtro ("Todas" + um por valor).
+  const grupoInfo = dimensaoBadgeOuFiltro('grupo', 'Local', entry.artigos);
+  const areaInfo  = dimensaoBadgeOuFiltro('area', 'Área', entry.artigos);
+
+  const linhas = entry.artigos
+    .slice()
+    .sort(compareIndexArtigos)
+    .map(art => {
+      const caixasHtml = art.caixas.length
+        ? art.caixas.slice()
+            .sort((a, b) => a.tipoCx.localeCompare(b.tipoCx, 'pt'))
+            .map(c => `<span class="badge-total" title="${escHtml(c.tipoCx)}">${escHtml(c.tipoCx)}: ${escHtml(c.qtdTotal || 0)}</span>`)
+            .join(' ')
+        : '<span class="no-data">—</span>';
+      const posHtml = art.posicaoTexto
+        ? escHtml(art.posicaoTexto)
+        : '<span class="no-data">—</span>';
+      return `<tr data-area="${escHtml(art.area || '')}" data-grupo="${escHtml(art.grupo || '')}">
+        <td class="mono"><button type="button" class="cod-link" data-cod="${escHtml(art.cod)}" onclick="irParaArtigoNoIndice(this.dataset.cod)" title="Ver ficha deste artigo">${escHtml(art.cod)}</button></td>
+        <td>${escHtml(art.nome || '—')}</td>
+        <td>${caixasHtml}</td>
+        <td class="muted">${posHtml}</td>
+      </tr>`;
+    }).join('');
+
+  return `<div class="artigo-card">
+    <div class="artigo-card-header">
+      <span class="cod-pill">${escHtml(entry.cod || '—')}</span>
+      <div class="sgc-header-main">
+        <span class="artigo-nome">${escHtml(entry.nome)}${grupoInfo.badge}${areaInfo.badge}</span>
+        ${grupoInfo.filtro}${areaInfo.filtro}
+      </div>
+    </div>
+    <div class="artigo-card-body">
+      <div class="sec-label">${escHtml(labelTipo)} — <span class="sec-count" data-total="${entry.artigos.length}">${entry.artigos.length} artigo(s)</span></div>
+      <div class="cx-wrap">
+        <table class="cx">
+          <thead><tr>
+            <th class="sortable" onclick="setIndexSort('cod')">Código${sortArrowHtml('cod')}</th>
+            <th class="sortable" onclick="setIndexSort('artigo')">Artigo${sortArrowHtml('artigo')}</th>
+            <th>Caixa / Quantidade</th>
+            <th class="sortable" onclick="setIndexSort('posicao')">${escHtml(posLabel)}${sortArrowHtml('posicao')}</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCard(cod) {
+  const s    = superMap[cod] || { supermercados: [], caixas: [] };
+  const a    = armMap[cod]   || { posicoes: [] };
+  const nome = getNome(cod);
+
+  // ── Armazém block ──
+  const armHTML = a.posicoes.length
+    ? `<div class="arm-grid">${a.posicoes.map(p => `
+        <div class="arm-cell">
+          <div class="arm-cell-name">${escHtml(p.nomeArm || p.codArm)}</div>
+          <div class="arm-cell-pos">${escHtml(p.descZona || p.zona || '—')}</div>
+          ${p.um  ? `<div class="arm-cell-um">UM: ${escHtml(p.um)}</div>` : ''}
+          ${p.obs ? `<div class="arm-cell-obs">${escHtml(p.obs)}</div>` : ''}
+        </div>`).join('')}</div>`
+    : '<span class="no-data">Sem dados de armazém</span>';
+
+  // ── Supermercados block (agrupado por Local: HPH / ACES / Outro) ──
+  let superHTML = '<span class="no-data">Não associado a supermercados</span>';
+  if (s.supermercados.length) {
+    const ordem = ['HPH', 'ACES', 'Outro'];
+    const grupos = {};
+    s.supermercados.forEach(sv => {
+      if (!grupos[sv.grupo]) grupos[sv.grupo] = [];
+      grupos[sv.grupo].push(sv);
+    });
+    superHTML = ordem.filter(g => grupos[g] && grupos[g].length).map(g => `
+      <div class="super-group">
+        <div class="super-group-label">${escHtml(g)} (${grupos[g].length})</div>
+        <div class="super-tags">${ordenarSupermercadosAlfabeticamente(grupos[g]).map(sv =>
+          `<button type="button" class="super-tag super-tag-btn" data-cod="${escHtml(sv.cod)}" data-nome="${escHtml(sv.nome)}" onclick="irParaSupermercadoNoIndice(this.dataset.cod, this.dataset.nome)" title="${sv.local ? 'Local: ' + escHtml(sv.local) + ' — ' : ''}Ver índice deste supermercado">${escHtml(sv.nome)}${sv.cod ? ' (' + escHtml(sv.cod) + ')' : ''}</button>`
+        ).join('')}</div>
+      </div>`).join('');
+  }
+
+  // ── Caixas por grupo (HPH / ACES / Outro) ──
+  let cxHTML = '';
+  if (s.caixas.length) {
+    const porGrupo = maxPorTipoEGrupo(s.caixas);
+    const ordemGrupos = ['HPH', 'ACES', 'Outro'];
+    const colunas = ordemGrupos
+      .filter(g => porGrupo[g] && porGrupo[g].length)
+      .map(g => `
+        <div class="cxgrp-col">
+          <div class="cxgrp-title">${escHtml(g)}</div>
+          ${porGrupo[g].map(t => `
+            <div class="cxgrp-row">
+              <span class="cxgrp-tipo">${escHtml(t.tipo)}</span>
+              <span class="badge-total">${escHtml(t.max)}</span>
+            </div>`).join('')}
+        </div>`).join('');
+    cxHTML = `
+      <div>
+        <div class="sec-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+          Caixas por supermercado
+        </div>
+        <div class="cxgrp-grid">${colunas}</div>
+      </div>`;
+  }
+
+  // ── Painel "Informação importante" (Armazém e Posição → Supermercados
+  // com Artigo → Maior total por supermercado) ──
+  let infoHTML = '';
+  if (s.supermercados.length || s.caixas.length || a.posicoes.length) {
+    const totais = totaisPorSupermercado(s.caixas);
+    const maior  = maiorTotalSupermercado(totais);
+
+    // Contagem de supermercados por grupo (HPH / ACES / Outro)
+    const contagemGrupos = {};
+    s.supermercados.forEach(sv => { contagemGrupos[sv.grupo] = (contagemGrupos[sv.grupo] || 0) + 1; });
+    const ordemGrupos = ['HPH', 'ACES', 'Outro'];
+    const listaGrupos = ordemGrupos
+      .filter(g => contagemGrupos[g])
+      .map(g => `${contagemGrupos[g]} ${escHtml(g)}`)
+      .join(', ') || '—';
+
+    infoHTML = `
+      <div>
+        <div class="sec-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          Informação importante
+        </div>
+        <div class="info-grid">
+          <div class="info-card neutral">
+            <div class="info-card-title">Armazém e Posição</div>
+            ${armHTML}
+          </div>
+          <div class="info-card blue">
+            <div class="info-card-title">Supermercados com artigo</div>
+            <div class="info-card-num">${s.supermercados.length}</div>
+            <div class="info-card-detail">${listaGrupos}</div>
+          </div>
+          <div class="info-card amber">
+            <div class="info-card-title">Maior total por supermercado</div>
+            <div class="info-card-num">${maior ? escHtml(maior.valor) : '—'}</div>
+            <div class="info-card-detail">${maior ? escHtml(maior.nome) : '—'}</div>
+          </div>
+        </div>
+      </div>
+      <hr class="divider">`;
+  }
+
+  return `<div class="artigo-card">
+    <div class="artigo-card-header">
+      <span class="cod-pill">${escHtml(cod)}</span>
+      <span class="artigo-nome">${escHtml(nome || '—')}</span>
+    </div>
+    <div class="artigo-card-body">
+      ${infoHTML}
+      ${cxHTML ? `${cxHTML}<hr class="divider">` : ''}
+      <div>
+        <div class="sec-label">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          Supermercados
+        </div>
+        ${superHTML}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── PWA: registo do Service Worker ──────────────────────
+// Regista o sw.js (ficheiro à parte, tem de estar na mesma pasta do HTML
+// no GitHub Pages) para a app ficar instalável e funcionar offline depois
+// da primeira visita. Feito com "load" para não atrasar o arranque da
+// página, e protegido por "in navigator" para não rebentar em navegadores
+// sem suporte a Service Worker.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => {
+      console.warn('Falha ao registar o Service Worker (a app continua a funcionar normalmente, só sem modo offline):', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
