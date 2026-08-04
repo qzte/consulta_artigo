@@ -2,11 +2,21 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.28.0
+  Consulta de Artigos — v1.28.1
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.28.0 (atual)
+  v1.28.1 (atual)
+    - fix: "Usar este código" preenchia a caixa de pesquisa com o código
+      lido pela câmara mas não pesquisava nada — era preciso apagar um
+      caráter para a app reagir. Preencher o .value por código não dispara
+      o evento "input" (só a escrita da pessoa é que o dispara), por isso o
+      oninput="onSearchInput()" da caixa nunca chegava a correr; apagar um
+      caráter era o primeiro "input" a sério. usarCandidato passa a chamar
+      onSearchInput() depois de preencher, tal como já faziam as outras
+      duas funções que preenchem a pesquisa por código
+      (irParaSupermercadoNoIndice e irParaArtigoNoIndice)
+  v1.28.0
     - fix: o scan ao vivo NUNCA conseguia ler um código de barras. Desde a
       v1.18.0 que o código de barras era procurado no mesmo fotograma já
       preparado para o OCR — e esse fotograma está recortado à faixa
@@ -420,8 +430,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.28.0</title>
-<meta name="description" content="Consulta de Artigos v1.28.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.28.1</title>
+<meta name="description" content="Consulta de Artigos v1.28.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3005,7 +3015,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.28.0</span>
+  <span class="version">v1.28.1</span>
 </header>
 
 <div class="container">
@@ -4680,7 +4690,19 @@ function usarCandidato() {
   inp.value = digitos;
   inp.focus();
   inp.select();
-  document.getElementById('btn-clear').style.display = 'inline-flex';
+  // Preencher .value por código NÃO dispara o evento "input" — só a escrita
+  // da pessoa é que o dispara. Sem esta chamada, o oninput="onSearchInput()"
+  // da caixa nunca corria e o código aparecia lá escrito sem nenhuma
+  // pesquisa a acontecer; só apagando um caráter (aí sim, um "input" a
+  // sério) é que a app reagia. As outras duas funções que preenchem a
+  // pesquisa por código — irParaSupermercadoNoIndice e irParaArtigoNoIndice
+  // — já tratavam disto; esta tinha ficado de fora.
+  // Chama-se onSearchInput() e não doSearch() diretamente para reaproveitar
+  // a limpeza de estado que ele faz (selectedIndexKey e companhia), senão a
+  // ficha escolhida numa pesquisa anterior podia continuar a aparecer por
+  // cima do artigo acabado de ler. O btn-clear passa a ser tratado lá
+  // dentro, por doSearch.
+  onSearchInput();
 }
 
 // (B) Prepara o fotograma para o OCR: recorta a zona da moldura, amplia-a
