@@ -2,11 +2,31 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.28.3
+  Consulta de Artigos — v1.29.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.28.3 (atual)
+  v1.29.0 (atual)
+    - feat: no modo "Etiqueta" o passo do artigo passa a ser de escolha
+      MÚLTIPLA. Cada clique num artigo marca/desmarca (o botão fica
+      destacado), saem tantas etiquetas quantos os artigos marcados, e o
+      cabeçalho da lista mostra "N marcado(s)". Antes só se podia ter um
+      artigo escolhido de cada vez: escolher outro trocava a etiqueta, e
+      para emitir várias era preciso repetir o processo etiqueta a etiqueta
+      ou ir ao índice do supermercado marcar as caixinhas
+    - feat: com dois ou mais artigos marcados aparece o botão "Imprimir
+      etiquetas (N)", que manda todas seguidas para uma folha A4 — a mesma
+      impressão em lote do índice de supermercado. Cada etiqueta mantém à
+      mesma o seu botão "Imprimir etiqueta" individual, que continua a sair
+      em rolo 23x80mm. As etiquetas saem pela mesma ordem em que os artigos
+      aparecem nos botões
+    - feat: imprimir pelo browser (Ctrl+P / menu do telemóvel) com várias
+      etiquetas no ecrã passa a usar a folha A4, tal como o botão de lote
+    - nota: ao trocar de supermercado, os artigos marcados que não existam
+      no novo ficam de fora sem se perderem — voltam a aparecer marcados se
+      voltar ao supermercado anterior. Uma pesquisa nova continua a limpar
+      tudo, como antes
+  v1.28.3
     - fix: a impressão de uma etiqueta continuava a dar dezenas de páginas,
       agora com a etiqueta a REPETIR-SE pelo meio. A v1.28.2 limpava a área
       de impressão 1 segundo depois de chamar window.print(), como rede de
@@ -463,8 +483,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.28.3</title>
-<meta name="description" content="Consulta de Artigos v1.28.3 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.29.0</title>
+<meta name="description" content="Consulta de Artigos v1.29.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3061,7 +3081,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.28.3</span>
+  <span class="version">v1.29.0</span>
 </header>
 
 <div class="container">
@@ -3705,11 +3725,21 @@ let searchMode = 'artigo';
 let selectedIndexKey = null;
 
 // Modo "Etiqueta": fluxo de dois passos — primeiro escolher o supermercado
-// (etqSuperKey, formato "cod|nome"), depois escolher o artigo (etqArtigoCod).
-// A posição da etiqueta vem do par (supermercado, artigo), por isso são
-// precisos os dois; o código/descrição/preço/stockável vêm do artigo (ARM).
+// (etqSuperKey, formato "cod|nome"), depois escolher os artigos
+// (etqArtigosSel, conjunto de códigos). A posição da etiqueta vem do par
+// (supermercado, artigo), por isso são precisos os dois; o
+// código/descrição/preço/stockável vêm do artigo (ARM).
+//
+// Desde a v1.29.0 o passo do artigo é de escolha MÚLTIPLA: cada clique num
+// artigo marca/desmarca, saem tantas etiquetas quantos os artigos marcados,
+// e com dois ou mais aparece o botão "Imprimir etiquetas (N)" que as manda
+// todas de uma vez para uma folha A4 (o mesmo que já existia no índice de
+// supermercado). Antes só se podia ter um artigo escolhido de cada vez.
 let etqSuperKey  = null;
-let etqArtigoCod = null;
+let etqArtigosSel = new Set();
+// O que está desenhado neste momento (supermercado + artigos marcados),
+// usado pelo botão "Imprimir etiquetas (N)".
+let etqEtiquetasAtuais = null;
 
 function activeSearchInputId() {
   if (searchMode === 'artigo')   return 'search-input-artigo';
@@ -3994,7 +4024,7 @@ function onSearchInput() {
   clearTimeout(searchTimer);
   selectedIndexKey = null;
   etqSuperKey = null;
-  etqArtigoCod = null;
+  etqArtigosSel = new Set();
   searchTimer = setTimeout(doSearch, 150);
 }
 
@@ -4129,7 +4159,7 @@ function renderModoEtiqueta(q, qRaw, container) {
     : '';
 
   if (!grupos.length) {
-    etqSuperKey = null; etqArtigoCod = null;
+    etqSuperKey = null; etqArtigosSel = new Set();
     container.innerHTML = emptyStateHtml(qRaw, 'supermercado');
     return;
   }
@@ -4145,28 +4175,44 @@ function renderModoEtiqueta(q, qRaw, container) {
     return `<button type="button" class="area-btn${ativo}" data-key="${escHtml(key)}" onclick="selectEtqSupermercado(this.dataset.key)">${escHtml(g.nome)}</button>`;
   }).join('');
 
+  // Artigos do supermercado escolhido, pela ordem em que aparecem nos
+  // botões — é também a ordem por que saem as etiquetas, para a folha
+  // impressa se poder conferir contra o ecrã.
+  const artigosOrdenados = superEscolhido
+    ? superEscolhido.artigos.slice().sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'))
+    : [];
+  // Só contam os marcados que existem MESMO neste supermercado (ao trocar
+  // de supermercado, os que lá não existem ficam de fora sem se perderem).
+  const escolhidos = artigosOrdenados.filter(art => etqArtigosSel.has(art.cod));
+
   let passo2 = '';
   if (superEscolhido) {
-    // Passo 2: um botão por artigo desse supermercado.
-    const botoesArtigo = superEscolhido.artigos
-      .slice()
-      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt'))
-      .map(art => {
-        const ativo = art.cod === etqArtigoCod ? ' active' : '';
-        return `<button type="button" class="area-btn etq-artigo-btn${ativo}" data-cod="${escHtml(art.cod)}" onclick="selectEtqArtigo(this.dataset.cod)">${escHtml(art.cod)} — ${escHtml(art.nome || '—')}</button>`;
-      }).join('');
+    // Passo 2: um botão por artigo desse supermercado (escolha múltipla —
+    // cada clique marca/desmarca).
+    const botoesArtigo = artigosOrdenados.map(art => {
+      const ativo = etqArtigosSel.has(art.cod) ? ' active' : '';
+      return `<button type="button" class="area-btn etq-artigo-btn${ativo}" data-cod="${escHtml(art.cod)}" onclick="selectEtqArtigo(this.dataset.cod)" title="Marcar/desmarcar este artigo">${escHtml(art.cod)} — ${escHtml(art.nome || '—')}</button>`;
+    }).join('');
     passo2 = `<div class="super-group">
-      <div class="super-group-label">Artigo (${superEscolhido.artigos.length})</div>
+      <div class="super-group-label">Artigos (${artigosOrdenados.length})${escolhidos.length ? ` — ${escolhidos.length} marcado(s)` : ''}</div>
       <div class="area-filter-row">${botoesArtigo}</div>
     </div>`;
   }
 
-  // Passo 3: a etiqueta em si (só quando há artigo escolhido).
-  let etiquetaHtml = '';
-  if (superEscolhido && etqArtigoCod) {
-    const art = superEscolhido.artigos.find(a => a.cod === etqArtigoCod);
-    if (art) etiquetaHtml = renderEtiqueta(art.cod, superEscolhido.nome, art.posicaoTexto || art.posicao || '');
-  }
+  // Passo 3: as etiquetas (uma por artigo marcado). Guarda-se também o que
+  // está a ser mostrado, para o botão de imprimir todas não ter de repetir
+  // a procura.
+  etqEtiquetasAtuais = superEscolhido
+    ? { superNome: superEscolhido.nome, artigos: escolhidos }
+    : null;
+  const etiquetasHtml = escolhidos
+    .map(art => renderEtiqueta(art.cod, superEscolhido.nome, art.posicaoTexto || art.posicao || ''))
+    .join('');
+  // Com duas ou mais etiquetas, o botão que as manda todas para uma folha
+  // A4 — cada etiqueta mantém à mesma o seu botão individual (rolo 23x80mm).
+  const barraHtml = escolhidos.length > 1
+    ? `<div class="etq-lote-bar"><button type="button" class="etq-print-btn" onclick="imprimirEtiquetasEscolhidas()">Imprimir etiquetas (${escolhidos.length})</button></div>`
+    : '';
 
   container.innerHTML = `<div class="artigo-card"><div class="artigo-card-body">
     <div class="super-group">
@@ -4174,20 +4220,34 @@ function renderModoEtiqueta(q, qRaw, container) {
       <div class="area-filter-row">${badgesSuper}</div>
     </div>
     ${passo2}
-  </div></div>${etiquetaHtml}`;
+  </div></div>${barraHtml}${etiquetasHtml}`;
 }
 
 function selectEtqSupermercado(key) {
   etqSuperKey = key;
-  // Mantém o artigo escolhido se ele ainda existir neste supermercado;
-  // caso contrário limpa. (Reselecionar o mesmo supermercado não perde o
-  // artigo já escolhido.)
+  // Mantém os artigos marcados que ainda existirem neste supermercado (o
+  // filtro é feito no render); reselecionar o mesmo supermercado não perde
+  // nada.
   doSearch();
 }
 
+// Marca/desmarca um artigo: é o que permite gerar várias etiquetas de uma
+// vez sem ter de voltar atrás a cada uma.
 function selectEtqArtigo(cod) {
-  etqArtigoCod = cod;
+  if (etqArtigosSel.has(cod)) etqArtigosSel.delete(cod);
+  else etqArtigosSel.add(cod);
   doSearch();
+}
+
+// Imprime todas as etiquetas marcadas no modo Etiqueta, seguidas numa folha
+// A4 — a mesma impressão em lote do índice de supermercado.
+function imprimirEtiquetasEscolhidas() {
+  if (!etqEtiquetasAtuais || !etqEtiquetasAtuais.artigos.length) return;
+  const html = etqEtiquetasAtuais.artigos
+    .map(art => renderEtiqueta(art.cod, etqEtiquetasAtuais.superNome, art.posicaoTexto || art.posicao || ''))
+    .join('');
+  prepararAreaDeEtiquetas(html, '@media print { @page { size: A4; margin: 10mm; } }', true);
+  window.print();
 }
 
 // Desenha a etiqueta 23x80mm: 4 colunas lado a lado —
@@ -4307,8 +4367,13 @@ function imprimirEtiqueta(btn) {
 // resultado é igual ao do botão.
 window.addEventListener('beforeprint', () => {
   if (etqPrintEstado) return;
-  const etq = document.querySelector('.etiqueta-wrap .etiqueta');
-  if (etq) prepararAreaDeEtiquetas(etq.outerHTML, '', false);
+  const etqs = Array.from(document.querySelectorAll('.etiqueta-wrap .etiqueta'));
+  if (!etqs.length) return;
+  const html = etqs.map(e => e.outerHTML).join('');
+  // Com mais do que uma etiqueta no ecrã vale a mesma regra do botão
+  // "Imprimir etiquetas (N)": folha A4 em vez do rolo de 23mm.
+  const lote = etqs.length > 1;
+  prepararAreaDeEtiquetas(html, lote ? '@media print { @page { size: A4; margin: 10mm; } }' : '', lote);
 });
 
 // ── Etiquetas em lote (índice de supermercado) ──────────
@@ -4414,7 +4479,7 @@ function clearSearch() {
   // escolhidos assim que se escrevesse outra pesquisa qualquer.
   selectedIndexKey = null;
   etqSuperKey = null;
-  etqArtigoCod = null;
+  etqArtigosSel = new Set();
   const inp = document.getElementById(activeSearchInputId());
   inp.value = '';
   document.getElementById('btn-clear').style.display = 'none';
