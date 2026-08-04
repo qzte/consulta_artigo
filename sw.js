@@ -1,4 +1,4 @@
-// Service Worker — Consulta de Artigos v1.27.1
+// Service Worker — Consulta de Artigos v1.28.0
 //
 // Função: guardar uma cópia local (cache) do ficheiro HTML, dos ícones,
 // do manifest e dos scripts das bibliotecas, para a app continuar a abrir
@@ -20,13 +20,13 @@
 //   (T_supermercados / Consumo) — esse é gerido diretamente pelo HTML
 //   (ver "Persistência local (IndexedDB)" no script), não por aqui.
 
-// ATENÇÃO: subir este nome é o que faz a v1.27.1 chegar a quem já tem a app
-// instalada. A cache antiga guardava o xlsx 0.18.5 do cdnjs, e handleAsset
-// serve sempre da cache primeiro — sem mudar de nome, um dispositivo já
-// instalado continuaria a carregar a versão vulnerável indefinidamente,
-// mesmo com o index.html novo. O activate apaga as caches com nome diferente
-// deste, e é aí que a cópia antiga do cdnjs desaparece do dispositivo.
-const CACHE_NAME = 'consulta-artigos-v1.27.1';
+// ATENÇÃO: subir este nome é o que faz uma versão nova chegar a quem já tem
+// a app instalada. handleAsset serve sempre da cache primeiro — sem mudar
+// de nome, um dispositivo já instalado continuaria a carregar os ficheiros
+// antigos indefinidamente, mesmo com o index.html novo. O activate apaga as
+// caches com nome diferente deste, e é aí que as cópias antigas
+// desaparecem do dispositivo.
+const CACHE_NAME = 'consulta-artigos-v1.28.0';
 
 // Página a servir offline quando a rede falha numa navegação.
 const OFFLINE_URL = './index.html';
@@ -66,6 +66,12 @@ const PRECACHE_LOCAL = [
 // diretamente em cache.
 const PRECACHE_CDN = [
   'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
+  // O Tesseract carrega este segundo ficheiro em runtime, quando o scan é
+  // aberto pela primeira vez. Fica aqui para o scan também funcionar da
+  // primeira vez já sem rede. Os restantes (motor wasm e dados de idioma)
+  // vêm de outros domínios e continuam a ser guardados pelo handleAsset na
+  // primeira utilização com internet — ver a nota lá em baixo.
+  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
   'https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js',
 ];
 
