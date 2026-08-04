@@ -1,4 +1,4 @@
-// Service Worker — Consulta de Artigos v1.27.0
+// Service Worker — Consulta de Artigos v1.27.1
 //
 // Função: guardar uma cópia local (cache) do ficheiro HTML, dos ícones,
 // do manifest e dos scripts das bibliotecas, para a app continuar a abrir
@@ -20,7 +20,13 @@
 //   (T_supermercados / Consumo) — esse é gerido diretamente pelo HTML
 //   (ver "Persistência local (IndexedDB)" no script), não por aqui.
 
-const CACHE_NAME = 'consulta-artigos-v1.27.0';
+// ATENÇÃO: subir este nome é o que faz a v1.27.1 chegar a quem já tem a app
+// instalada. A cache antiga guardava o xlsx 0.18.5 do cdnjs, e handleAsset
+// serve sempre da cache primeiro — sem mudar de nome, um dispositivo já
+// instalado continuaria a carregar a versão vulnerável indefinidamente,
+// mesmo com o index.html novo. O activate apaga as caches com nome diferente
+// deste, e é aí que a cópia antiga do cdnjs desaparece do dispositivo.
+const CACHE_NAME = 'consulta-artigos-v1.27.1';
 
 // Página a servir offline quando a rede falha numa navegação.
 const OFFLINE_URL = './index.html';
@@ -36,6 +42,13 @@ const PRECACHE_LOCAL = [
   './icon-512.png',
   './icon-192-maskable.png',
   './icon-512-maskable.png',
+  // Desde a v1.27.1 o xlsx é um ficheiro DESTE repositório, não de uma CDN
+  // (ver o comentário na tag <script> do index.html: a versão do cdnjs tinha
+  // vulnerabilidades conhecidas e não existe versão corrigida em CDN pública).
+  // Está aqui, na lista obrigatória, e não na best-effort de baixo, de
+  // propósito: sem esta biblioteca a app abre mas não lê ficheiro nenhum, por
+  // isso é mesmo um erro de instalação e não uma degradação aceitável.
+  './xlsx.full.min.js',
 ];
 
 // Bibliotecas externas (CDN). Guardadas em separado e em modo
@@ -52,7 +65,6 @@ const PRECACHE_LOCAL = [
 // versão concreta — e respostas redirecionadas não podem ser guardadas
 // diretamente em cache.
 const PRECACHE_CDN = [
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
   'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
   'https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js',
 ];

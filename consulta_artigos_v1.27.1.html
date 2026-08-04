@@ -2,11 +2,26 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.27.0
+  Consulta de Artigos — v1.27.1
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.27.0 (atual)
+  v1.27.1 (atual)
+    - fix (segurança): a biblioteca que lê os ficheiros Excel (SheetJS/xlsx)
+      estava fixada na 0.18.5 vinda do cdnjs, que tem duas vulnerabilidades
+      conhecidas — prototype pollution (CVE-2023-30533) e ReDoS
+      (CVE-2024-22363), ambas acionáveis por um ficheiro .xlsx preparado
+      para o efeito. Passa a ser usada a 0.20.3, que corrige as duas.
+      Não chegava trocar o número da versão no URL: a SheetJS deixou de
+      publicar no registry público depois da 0.18.5, por isso nenhuma CDN
+      pública (cdnjs, jsdelivr, unpkg) tem uma versão corrigida. A
+      biblioteca passa a ser servida a partir deste repositório
+    - a mesma mudança tira uma dependência de CDN do arranque offline: o
+      xlsx era uma das três bibliotecas guardadas em modo best-effort, e
+      numa rede que bloqueasse o cdnjs a app abria offline mas ficava sem
+      conseguir ler ficheiro nenhum. Agora é um ficheiro local, garantido
+      pelo precache obrigatório
+  v1.27.0
     - fix: "Trocar ficheiros" não permitia trocar ficheiro nenhum. Depois
       de um ficheiro ser carregado, o seu cartão ficava sem resposta ao
       clique (onclick = null), por isso reabrir a zona de upload mostrava
@@ -365,8 +380,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.27.0</title>
-<meta name="description" content="Consulta de Artigos v1.27.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.27.1</title>
+<meta name="description" content="Consulta de Artigos v1.27.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -374,7 +389,20 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Artigos">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- SheetJS (xlsx) 0.20.3, servido a partir deste repositório e NÃO de uma CDN.
+     A versão que aqui estava (0.18.5, do cdnjs) tem duas vulnerabilidades
+     conhecidas: prototype pollution (CVE-2023-30533, corrigida na 0.19.3) e
+     ReDoS (CVE-2024-22363, corrigida na 0.20.2). Ambas são acionadas ao
+     interpretar um ficheiro .xlsx preparado para o efeito — exatamente o que
+     processFileBuffer faz com o ficheiro que a pessoa escolhe.
+     Não basta subir o número da versão no URL: a SheetJS deixou de publicar
+     no registry público depois da 0.18.5 e passou a distribuir só a partir da
+     cdn.sheetjs.com. O cdnjs, o jsdelivr e o unpkg espelham o npm, por isso
+     nenhum deles tem — nem virá a ter — uma versão corrigida. A única forma
+     de sair da 0.18.5 é guardar o ficheiro aqui, como está agora.
+     Para atualizar: descarregar de https://cdn.sheetjs.com/xlsx-<versão>/package/dist/xlsx.full.min.js
+     e substituir ./xlsx.full.min.js (não é preciso mexer neste caminho). -->
+<script src="./xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <!-- Versão fixada (era "@latest"): "latest" muda sozinho, e uma versão nova
      do ZXing podia partir o scan sem nada ter mudado neste ficheiro. 0.2.1
@@ -2937,7 +2965,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.27.0</span>
+  <span class="version">v1.27.1</span>
 </header>
 
 <div class="container">
