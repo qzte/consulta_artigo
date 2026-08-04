@@ -2,11 +2,30 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.29.0
+  Consulta de Artigos — v1.29.1
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.29.0 (atual)
+  v1.29.1 (atual)
+    - fix: no PC saía uma página, no telemóvel saíam duas (a etiqueta e uma
+      folha em branco atrás). A v1.28.3 tirou o temporizador mas continuava a
+      LIMPAR a área de impressão no afterprint / na media query 'print' / no
+      regresso do foco. No PC o window.print() bloqueia e esses eventos só
+      chegam no fim, mas no telemóvel chegam CEDO — a janela recebe focus
+      quando a pré-visualização abre e a media query 'print' já está falsa —
+      por isso a página era esvaziada com a pré-visualização ainda aberta: a
+      etiqueta na primeira folha e a segunda folha em branco, já do documento
+      vazio. Agora não se mexe no documento durante a impressão: esses
+      eventos só marcam o estado como usado e a área é substituída na
+      impressão seguinte. Ficar no documento não custa nada — a área é
+      display:none no ecrã e as classes só valem dentro de @media print
+    - fix: uma segunda impressão pelo menu do browser (Ctrl+P) reaproveitava
+      a área da impressão anterior e podia sair a escolha antiga de artigos;
+      passa a ser sempre refeita a partir do que está no ecrã
+    - fix: a área de uma etiqueta única passa a ter break/page-break-after
+      "avoid" e font-size 0, para nenhum espaço branco solto ou arredondamento
+      da área imprimível empurrar uma segunda folha
+  v1.29.0
     - feat: no modo "Etiqueta" o passo do artigo passa a ser de escolha
       MÚLTIPLA. Cada clique num artigo marca/desmarca (o botão fica
       destacado), saem tantas etiquetas quantos os artigos marcados, e o
@@ -483,8 +502,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.29.0</title>
-<meta name="description" content="Consulta de Artigos v1.29.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.29.1</title>
+<meta name="description" content="Consulta de Artigos v1.29.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3063,8 +3082,19 @@ var qrcode = function() {
     #etq-print-area { display: block; }
     #etq-print-area .etiqueta-wrap { display: block; margin: 0; }
     #etq-print-area .etiqueta { margin: 0; }
-    /* UMA etiqueta (modo Etiqueta): rolo 23x80mm, uma página exata. */
-    body:not(.print-lote) #etq-print-area { width: 80mm; height: 23mm; overflow: hidden; }
+    /* UMA etiqueta (modo Etiqueta): rolo 23x80mm, uma página exata.
+       O overflow:hidden e os break/page-break-after são o que impede uma
+       segunda folha em branco quando a impressora (ou o serviço de impressão
+       do telemóvel) deixa a área imprimível uns décimos de milímetro mais
+       pequena do que a folha pedida. O font-size:0 é para nenhum espaço
+       branco solto dentro da área criar uma linha de texto a seguir à
+       etiqueta — as células da etiqueta trazem todas o seu próprio tamanho. */
+    body:not(.print-lote) #etq-print-area {
+      width: 80mm; height: 23mm; overflow: hidden;
+      font-size: 0; line-height: 0;
+      break-inside: avoid; page-break-inside: avoid;
+      break-after: avoid; page-break-after: avoid;
+    }
     /* LOTE: várias etiquetas seguidas na mesma folha A4 (a regra @page A4
        é injetada por imprimirEtiquetasLote, para não afetar a impressão
        de uma etiqueta única em rolo). */
@@ -3081,7 +3111,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.29.0</span>
+  <span class="version">v1.29.1</span>
 </header>
 
 <div class="container">
@@ -4293,19 +4323,27 @@ function renderEtiqueta(cod, superNome, posicao) {
 // para sair só a(s) etiqueta(s) sem cabeçalhos, barras da app nem páginas
 // em branco atrás.
 //
-// A limpeza NÃO pode ser feita por temporizador. Até à v1.28.2 a área era
-// removida 1 segundo depois de chamar window.print(), como rede de
-// segurança. Em Chrome no Android (e na app instalada) o window.print() NÃO
-// bloqueia: devolve logo e a pré-visualização é montada a seguir — ou seja,
-// o temporizador disparava com a pré-visualização ainda aberta, tirava a
-// classe .print-etq e a área, e o que ficava a ser impresso era a APP
-// INTEIRA em folhas de 23mm: dezenas de páginas, com a etiqueta a repetir-se
-// (uma vez na área de impressão e outra na página, conforme a
-// pré-visualização se ia redesenhando). Agora só se limpa quando a
-// impressão TERMINA mesmo: afterprint, media query 'print' a ficar falsa,
-// ou o regresso do foco à janela.
+// NADA é mexido no documento enquanto a impressão decorre — é essa a regra
+// que custou três versões a acertar:
+//   v1.28.2: a área era removida por um temporizador de 1s. No Chrome do
+//     Android o window.print() não bloqueia (devolve logo e a
+//     pré-visualização é montada a seguir), por isso o temporizador disparava
+//     a meio e saía a app inteira em folhas de 23mm — dezenas de páginas.
+//   v1.28.3: passou a remover-se no afterprint / na media query 'print' /
+//     no regresso do foco. No telemóvel esses eventos também chegam CEDO
+//     DEMAIS (a janela recebe focus quando a pré-visualização abre, e a media
+//     query 'print' já está falsa nessa altura), e a página era limpa com a
+//     pré-visualização aberta: a etiqueta na primeira folha e uma segunda
+//     folha em branco, do documento já vazio. No PC, onde o print() bloqueia,
+//     isto nunca acontecia — daí "no PC uma página, no telemóvel duas".
+// Agora esses eventos só MARCAM o estado como usado; a área é substituída na
+// impressão seguinte. Ficar no documento não custa nada: #etq-print-area é
+// display:none no ecrã e as classes .print-etq/.print-lote só têm efeito
+// dentro de @media print.
 let etqPrintEstado = null;
 
+// Remove a área da impressão anterior. Só é chamada ANTES de uma impressão
+// nova (nunca durante uma).
 function limparAreaDeEtiquetas() {
   if (!etqPrintEstado) return;
   const { area, style, aoTerminar } = etqPrintEstado;
@@ -4336,15 +4374,13 @@ function prepararAreaDeEtiquetas(html, pageCss, lote) {
     style.textContent = pageCss;
     document.head.appendChild(style);
   }
-  // Só limpa se a impressão já não estiver a decorrer — o evento 'focus'
-  // chega antes do fim em alguns browsers, e a media query é a verificação
-  // que distingue os dois casos.
+  // Fim da impressão: NÃO se mexe no documento (ver o comentário grande em
+  // cima). Marca-se só o estado como usado, para a impressão seguinte pelo
+  // menu do browser voltar a ler o que está no ecrã em vez de repetir esta.
   const aoTerminar = () => {
-    const mql = window.matchMedia && window.matchMedia('print');
-    if (mql && mql.matches) return;
-    limparAreaDeEtiquetas();
+    if (etqPrintEstado) etqPrintEstado.usado = true;
   };
-  etqPrintEstado = { area, style, aoTerminar };
+  etqPrintEstado = { area, style, aoTerminar, usado: false };
   window.addEventListener('afterprint', aoTerminar);
   window.addEventListener('focus', aoTerminar);
   const mql = window.matchMedia && window.matchMedia('print');
@@ -4363,10 +4399,11 @@ function imprimirEtiqueta(btn) {
 // Impressão pedida pelo próprio browser (Ctrl+P, menu "Imprimir" do
 // telemóvel, "Partilhar → Imprimir"): não passou pelos botões da app, por
 // isso não há área nenhuma preparada e sairia a app inteira em folhas de
-// 23mm. Se houver uma etiqueta no ecrã, prepara a área na mesma — assim o
-// resultado é igual ao do botão.
+// 23mm. Se houver etiquetas no ecrã, prepara a área na mesma — assim o
+// resultado é igual ao dos botões. A área da impressão ANTERIOR (já usada)
+// é refeita, porque entretanto a escolha de artigos pode ter mudado.
 window.addEventListener('beforeprint', () => {
-  if (etqPrintEstado) return;
+  if (etqPrintEstado && !etqPrintEstado.usado) return;
   const etqs = Array.from(document.querySelectorAll('.etiqueta-wrap .etiqueta'));
   if (!etqs.length) return;
   const html = etqs.map(e => e.outerHTML).join('');
