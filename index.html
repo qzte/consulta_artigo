@@ -2,11 +2,31 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.28.2
+  Consulta de Artigos — v1.28.3
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.28.2 (atual)
+  v1.28.3 (atual)
+    - fix: a impressão de uma etiqueta continuava a dar dezenas de páginas,
+      agora com a etiqueta a REPETIR-SE pelo meio. A v1.28.2 limpava a área
+      de impressão 1 segundo depois de chamar window.print(), como rede de
+      segurança — mas no Chrome do Android (e na app instalada) o
+      window.print() NÃO bloqueia: devolve logo e a pré-visualização é
+      montada a seguir. O temporizador disparava com a pré-visualização
+      ainda aberta, tirava a classe .print-etq e a área, e o que ia parar ao
+      papel era a APP INTEIRA paginada em folhas de 23mm. A limpeza passa a
+      acontecer só quando a impressão termina mesmo (afterprint, a media
+      query 'print' a ficar falsa, ou o regresso do foco à janela), sem
+      temporizador nenhum
+    - fix: a regra que esconde a app na impressão deixou de depender da
+      classe .print-etq. Assim, mesmo que a área de impressão desapareça a
+      meio por alguma outra razão, o pior que pode sair é UMA página em
+      branco — nunca a app inteira em dezenas de folhas
+    - feat: imprimir pelo próprio browser (Ctrl+P, menu "Imprimir" do
+      telemóvel) com uma etiqueta no ecrã passa a dar o mesmo resultado que
+      o botão "Imprimir etiqueta": um novo beforeprint prepara a área de
+      impressão sozinho
+  v1.28.2
     - fix: ao imprimir uma etiqueta, a pré-visualização do browser mostrava
       VÁRIAS páginas — a etiqueta na primeira e uma série de páginas em
       branco atrás. A impressão escondia o resto da página com
@@ -443,8 +463,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.28.2</title>
-<meta name="description" content="Consulta de Artigos v1.28.2 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.28.3</title>
+<meta name="description" content="Consulta de Artigos v1.28.3 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3013,17 +3033,22 @@ var qrcode = function() {
      etiqueta. Com display:none só sobra a área de impressão. */
   #etq-print-area { display: none; }
   @media print {
-    body.print-etq { margin: 0; padding: 0; background: #fff; }
-    body.print-etq > *:not(#etq-print-area) { display: none !important; }
-    body.print-etq #etq-print-area { display: block; }
-    body.print-etq #etq-print-area .etiqueta-wrap { display: block; margin: 0; }
-    body.print-etq #etq-print-area .etiqueta { margin: 0; }
+    /* A regra de esconder a app NÃO depende da classe .print-etq, de
+       propósito: se por alguma razão a área de impressão desaparecer a meio
+       (ver prepararAreaDeEtiquetas), o pior que pode sair é UMA página em
+       branco — nunca a app inteira paginada em folhas de 23mm, que era o que
+       dava as dezenas de páginas. A folha desta app é sempre uma etiqueta. */
+    body > *:not(#etq-print-area) { display: none !important; }
+    body { margin: 0; padding: 0; background: #fff; }
+    #etq-print-area { display: block; }
+    #etq-print-area .etiqueta-wrap { display: block; margin: 0; }
+    #etq-print-area .etiqueta { margin: 0; }
     /* UMA etiqueta (modo Etiqueta): rolo 23x80mm, uma página exata. */
-    body.print-etq:not(.print-lote) #etq-print-area { width: 80mm; height: 23mm; overflow: hidden; }
+    body:not(.print-lote) #etq-print-area { width: 80mm; height: 23mm; overflow: hidden; }
     /* LOTE: várias etiquetas seguidas na mesma folha A4 (a regra @page A4
        é injetada por imprimirEtiquetasLote, para não afetar a impressão
        de uma etiqueta única em rolo). */
-    body.print-etq.print-lote #etq-print-area .etiqueta { margin: 0 0 3mm; break-inside: avoid; page-break-inside: avoid; }
+    body.print-lote #etq-print-area .etiqueta { margin: 0 0 3mm; break-inside: avoid; page-break-inside: avoid; }
     .etq-print-btn { display: none; }
     @page { size: 80mm 23mm; margin: 0; }
   }
@@ -3036,7 +3061,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.28.2</span>
+  <span class="version">v1.28.3</span>
 </header>
 
 <div class="container">
@@ -4202,40 +4227,68 @@ function renderEtiqueta(cod, superNome, posicao) {
   </div>`;
 }
 
-// Impressão: clona as etiquetas para uma área própria (#etq-print-area,
-// filho direto do body) e marca o body com .print-etq — o CSS @media print
-// esconde tudo o resto com display:none, para sair só a(s) etiqueta(s) sem
-// cabeçalhos, barras da app nem páginas em branco atrás.
-// pageCss é a regra @page opcional (o lote usa A4; uma etiqueta usa o rolo
-// 23x80mm que já vem do CSS base). Limpa tudo no afterprint, com fallback
-// por timeout para browsers que não disparam o evento.
-function imprimirNaAreaDeEtiquetas(html, pageCss) {
-  const anterior = document.getElementById('etq-print-area');
-  if (anterior) anterior.remove();
+// Impressão: as etiquetas são clonadas para uma área própria
+// (#etq-print-area, filho direto do body) e o body fica com a classe
+// .print-etq — o CSS @media print esconde tudo o resto com display:none,
+// para sair só a(s) etiqueta(s) sem cabeçalhos, barras da app nem páginas
+// em branco atrás.
+//
+// A limpeza NÃO pode ser feita por temporizador. Até à v1.28.2 a área era
+// removida 1 segundo depois de chamar window.print(), como rede de
+// segurança. Em Chrome no Android (e na app instalada) o window.print() NÃO
+// bloqueia: devolve logo e a pré-visualização é montada a seguir — ou seja,
+// o temporizador disparava com a pré-visualização ainda aberta, tirava a
+// classe .print-etq e a área, e o que ficava a ser impresso era a APP
+// INTEIRA em folhas de 23mm: dezenas de páginas, com a etiqueta a repetir-se
+// (uma vez na área de impressão e outra na página, conforme a
+// pré-visualização se ia redesenhando). Agora só se limpa quando a
+// impressão TERMINA mesmo: afterprint, media query 'print' a ficar falsa,
+// ou o regresso do foco à janela.
+let etqPrintEstado = null;
+
+function limparAreaDeEtiquetas() {
+  if (!etqPrintEstado) return;
+  const { area, style, aoTerminar } = etqPrintEstado;
+  etqPrintEstado = null;
+  area.remove();
+  if (style) style.remove();
+  document.body.classList.remove('print-etq', 'print-lote');
+  window.removeEventListener('afterprint', aoTerminar);
+  window.removeEventListener('focus', aoTerminar);
+  const mql = window.matchMedia && window.matchMedia('print');
+  if (mql && mql.removeEventListener) mql.removeEventListener('change', aoTerminar);
+}
+
+// Monta a área de impressão. pageCss é a regra @page opcional (o lote usa
+// A4; uma etiqueta usa o rolo 23x80mm que já vem do CSS base).
+function prepararAreaDeEtiquetas(html, pageCss, lote) {
+  limparAreaDeEtiquetas();
   const area = document.createElement('div');
   area.id = 'etq-print-area';
   area.innerHTML = html;
   document.body.appendChild(area);
   document.body.classList.add('print-etq');
-  let st = null;
+  if (lote) document.body.classList.add('print-lote');
+  let style = null;
   if (pageCss) {
-    st = document.createElement('style');
-    st.id = 'etq-print-page';
-    st.textContent = pageCss;
-    document.head.appendChild(st);
+    style = document.createElement('style');
+    style.id = 'etq-print-page';
+    style.textContent = pageCss;
+    document.head.appendChild(style);
   }
-  let limpo = false;
-  const limpar = () => {
-    if (limpo) return;
-    limpo = true;
-    area.remove();
-    if (st) st.remove();
-    document.body.classList.remove('print-etq', 'print-lote');
-    window.removeEventListener('afterprint', limpar);
+  // Só limpa se a impressão já não estiver a decorrer — o evento 'focus'
+  // chega antes do fim em alguns browsers, e a media query é a verificação
+  // que distingue os dois casos.
+  const aoTerminar = () => {
+    const mql = window.matchMedia && window.matchMedia('print');
+    if (mql && mql.matches) return;
+    limparAreaDeEtiquetas();
   };
-  window.addEventListener('afterprint', limpar);
-  window.print();
-  setTimeout(limpar, 1000);
+  etqPrintEstado = { area, style, aoTerminar };
+  window.addEventListener('afterprint', aoTerminar);
+  window.addEventListener('focus', aoTerminar);
+  const mql = window.matchMedia && window.matchMedia('print');
+  if (mql && mql.addEventListener) mql.addEventListener('change', aoTerminar);
 }
 
 // Uma etiqueta (modo Etiqueta): imprime a etiqueta do botão carregado.
@@ -4243,8 +4296,20 @@ function imprimirEtiqueta(btn) {
   const wrap = btn && btn.closest ? btn.closest('.etiqueta-wrap') : null;
   const etq = (wrap || document).querySelector('.etiqueta');
   if (!etq) return;
-  imprimirNaAreaDeEtiquetas(etq.outerHTML, '');
+  prepararAreaDeEtiquetas(etq.outerHTML, '', false);
+  window.print();
 }
+
+// Impressão pedida pelo próprio browser (Ctrl+P, menu "Imprimir" do
+// telemóvel, "Partilhar → Imprimir"): não passou pelos botões da app, por
+// isso não há área nenhuma preparada e sairia a app inteira em folhas de
+// 23mm. Se houver uma etiqueta no ecrã, prepara a área na mesma — assim o
+// resultado é igual ao do botão.
+window.addEventListener('beforeprint', () => {
+  if (etqPrintEstado) return;
+  const etq = document.querySelector('.etiqueta-wrap .etiqueta');
+  if (etq) prepararAreaDeEtiquetas(etq.outerHTML, '', false);
+});
 
 // ── Etiquetas em lote (índice de supermercado) ──────────
 // Estado da seleção: códigos marcados via checkbox na ficha de
@@ -4275,10 +4340,10 @@ function renderEtiquetaLote(entry, cods) {
   return parts;
 }
 
-// Impressão em lote: injeta a área com as etiquetas + regra @page A4
-// temporária, imprime, e limpa tudo no fim (afterprint, com fallback por
-// timeout) — assim a impressão de UMA etiqueta continua a sair em rolo
-// 23x80mm como antes.
+// Impressão em lote: monta a área com as etiquetas + regra @page A4
+// temporária e imprime — assim a impressão de UMA etiqueta continua a sair
+// em rolo 23x80mm como antes. A limpeza é a mesma de uma etiqueta só (ver
+// prepararAreaDeEtiquetas).
 function imprimirEtiquetasLote() {
   if (!etqLoteEntryAtual || !etqLoteSel.size) return;
   // Sai pela MESMA ordem em que os artigos aparecem na tabela (a ordenação
@@ -4291,8 +4356,8 @@ function imprimirEtiquetasLote() {
     .map(a => a.cod);
   const html = renderEtiquetaLote(etqLoteEntryAtual, cods);
   if (!html) return;
-  document.body.classList.add('print-lote');
-  imprimirNaAreaDeEtiquetas(html, '@media print { @page { size: A4; margin: 10mm; } }');
+  prepararAreaDeEtiquetas(html, '@media print { @page { size: A4; margin: 10mm; } }', true);
+  window.print();
 }
 
 // Faz scroll até à zona de resultados — usado pelos dois saltos recíprocos
