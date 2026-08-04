@@ -2,11 +2,23 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.31.0
+  Consulta de Artigos — v1.32.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.31.0 (atual)
+  v1.32.0 (atual)
+    - fix: as percentagens pedidas para a etiqueta (QR -10%, descrição +20%,
+      preço -10%) eram do ESPAÇO ocupado na etiqueta, não do corpo de letra.
+      Nas v1.30.0/v1.31.0 tinham sido aplicadas ao font-size, que ficou com
+      valores estranhos (descrição a 12.54px, preço a 9px). Agora a conta é
+      só nas larguras das colunas, a contar do desenho original (23 · 22 ·
+      19 · 16mm): QR 23mm → 20.7mm, preço 16mm → 14.4mm e a descrição fica
+      com o espaço libertado — 22.9mm de coluna, +20% sobre os 19mm
+    - fix: font-size da descrição e do preço passa a 10px em ambos (a
+      descrição era 9.5px no desenho original)
+    - nota: o QR mantém-se quadrado e centrado, agora com 18.7mm (a coluna
+      de 20.7mm menos 1mm de padding de cada lado) em vez dos 21mm originais
+  v1.31.0
     - feat: segundo ajuste ao design da etiqueta, por cima do da v1.30.0 —
       QR mais 10% pequeno (18.9mm → 17mm, coluna de 20.9mm → 19mm),
       descrição mais 20% maior (10.45px → 12.54px) e preço 10% mais
@@ -520,8 +532,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.31.0</title>
-<meta name="description" content="Consulta de Artigos v1.31.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.32.0</title>
+<meta name="description" content="Consulta de Artigos v1.32.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3052,7 +3064,10 @@ var qrcode = function() {
   .etiqueta {
     width: 80mm; height: 23mm;
     display: grid;
-    grid-template-columns: 19mm 22mm 1fr 16mm; /* QR · meio · descrição · preço */
+    /* Larguras a contar do desenho original (23 · 22 · 19 · 16mm):
+       QR -10% (23 → 20.7), preço -10% (16 → 14.4) e a descrição fica com o
+       espaço libertado — 1fr = 22.9mm, +20% sobre os 19mm que tinha */
+    grid-template-columns: 20.7mm 22mm 1fr 14.4mm; /* QR · meio · descrição · preço */
     background: #fff; color: #000;
     border: 1px solid #000;
     box-sizing: border-box;
@@ -3062,16 +3077,17 @@ var qrcode = function() {
   .etiqueta > div { border-right: 1px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
   .etiqueta > div:last-child { border-right: none; }
   .etq-qr { padding: 1mm; background: #fff; }
-  /* QR fixo em 17mm (-10% sobre os 18.9mm da v1.30.0) — quadrado e centrado na célula */
-  .etq-qr svg { width: 17mm; height: 17mm; display: block; }
+  /* QR fixo em 18.7mm — a coluna de 20.7mm menos 1mm de padding de cada lado.
+     Quadrado e centrado na célula (antes era 100%x100%, dependia da coluna) */
+  .etq-qr svg { width: 18.7mm; height: 18.7mm; display: block; }
   .etq-meio { padding: 0; }
   .etq-meio > div { width: 100%; border-bottom: 1px solid #000; display: flex; align-items: center; justify-content: center; flex: 1; }
   .etq-meio > div:last-child { border-bottom: none; }
   .etq-pos { font-weight: 700; font-size: 11px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-cod-cell { font-size: 10px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-sgcim { font-size: 8px; letter-spacing: 0.5px; }
-  .etq-descricao { padding: 1mm; font-size: 12.54px; line-height: 1.15; background: #fff; }
-  .etq-preco { padding: 1mm; font-size: 9px; font-weight: 600; background: #fff; }
+  .etq-descricao { padding: 1mm; font-size: 10px; line-height: 1.15; background: #fff; }
+  .etq-preco { padding: 1mm; font-size: 10px; font-weight: 600; background: #fff; }
   /* Cor pinta só código + descrição (regra de negócio) */
   .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; }
   .etiqueta.cor-rosa    .etq-cod-cell, .etiqueta.cor-rosa    .etq-descricao { background: #ffd6e7; }
@@ -3130,7 +3146,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.31.0</span>
+  <span class="version">v1.32.0</span>
 </header>
 
 <div class="container">
