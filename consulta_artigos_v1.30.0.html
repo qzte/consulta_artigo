@@ -2,11 +2,20 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.29.1
+  Consulta de Artigos — v1.30.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.29.1 (atual)
+  v1.30.0 (atual)
+    - feat: etiqueta impressa com o QR 10% mais pequeno — a coluna do QR passa
+      de 23mm para 20.9mm e o desenho fica fixo em 18.9mm (90% dos 21mm
+      úteis anteriores), quadrado e centrado na célula. Antes o SVG era
+      100%x100% da célula, ou seja, dependia da largura da coluna
+    - feat: descrição do artigo 10% maior na etiqueta (9.5px → 10.45px). Os
+      2.1mm libertados pela coluna do QR vão todos para a descrição, que é a
+      coluna elástica (1fr) — mais texto legível sem mexer nos 80x23mm nem
+      nas outras colunas (posição/código/SGCIM e preço ficam iguais)
+  v1.29.1
     - fix: no PC saía uma página, no telemóvel saíam duas (a etiqueta e uma
       folha em branco atrás). A v1.28.3 tirou o temporizador mas continuava a
       LIMPAR a área de impressão no afterprint / na media query 'print' / no
@@ -502,8 +511,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.29.1</title>
-<meta name="description" content="Consulta de Artigos v1.29.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.30.0</title>
+<meta name="description" content="Consulta de Artigos v1.30.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3034,7 +3043,7 @@ var qrcode = function() {
   .etiqueta {
     width: 80mm; height: 23mm;
     display: grid;
-    grid-template-columns: 23mm 22mm 1fr 16mm; /* QR · meio · descrição · preço */
+    grid-template-columns: 20.9mm 22mm 1fr 16mm; /* QR · meio · descrição · preço */
     background: #fff; color: #000;
     border: 1px solid #000;
     box-sizing: border-box;
@@ -3044,14 +3053,15 @@ var qrcode = function() {
   .etiqueta > div { border-right: 1px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
   .etiqueta > div:last-child { border-right: none; }
   .etq-qr { padding: 1mm; background: #fff; }
-  .etq-qr svg { width: 100%; height: 100%; display: block; }
+  /* QR fixo em 18.9mm (90% dos 21mm anteriores) — quadrado e centrado na célula */
+  .etq-qr svg { width: 18.9mm; height: 18.9mm; display: block; }
   .etq-meio { padding: 0; }
   .etq-meio > div { width: 100%; border-bottom: 1px solid #000; display: flex; align-items: center; justify-content: center; flex: 1; }
   .etq-meio > div:last-child { border-bottom: none; }
   .etq-pos { font-weight: 700; font-size: 11px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-cod-cell { font-size: 10px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-sgcim { font-size: 8px; letter-spacing: 0.5px; }
-  .etq-descricao { padding: 1mm; font-size: 9.5px; line-height: 1.15; background: #fff; }
+  .etq-descricao { padding: 1mm; font-size: 10.45px; line-height: 1.15; background: #fff; }
   .etq-preco { padding: 1mm; font-size: 10px; font-weight: 600; background: #fff; }
   /* Cor pinta só código + descrição (regra de negócio) */
   .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; }
@@ -3111,7 +3121,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.29.1</span>
+  <span class="version">v1.30.0</span>
 </header>
 
 <div class="container">
