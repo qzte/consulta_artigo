@@ -2,11 +2,20 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.30.0
+  Consulta de Artigos — v1.31.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.30.0 (atual)
+  v1.31.0 (atual)
+    - feat: segundo ajuste ao design da etiqueta, por cima do da v1.30.0 —
+      QR mais 10% pequeno (18.9mm → 17mm, coluna de 20.9mm → 19mm),
+      descrição mais 20% maior (10.45px → 12.54px) e preço 10% mais
+      pequeno (10px → 9px). Os 1.9mm libertados pelo QR voltam a ir para a
+      coluna elástica (1fr) da descrição, que fica com 23mm
+    - nota: com a descrição a 12.54px cabem ~5 linhas nos 23mm de altura;
+      descrições muito longas continuam a ser cortadas (overflow hidden,
+      como sempre foi), só que agora um pouco mais cedo
+  v1.30.0
     - feat: etiqueta impressa com o QR 10% mais pequeno — a coluna do QR passa
       de 23mm para 20.9mm e o desenho fica fixo em 18.9mm (90% dos 21mm
       úteis anteriores), quadrado e centrado na célula. Antes o SVG era
@@ -511,8 +520,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.30.0</title>
-<meta name="description" content="Consulta de Artigos v1.30.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.31.0</title>
+<meta name="description" content="Consulta de Artigos v1.31.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3043,7 +3052,7 @@ var qrcode = function() {
   .etiqueta {
     width: 80mm; height: 23mm;
     display: grid;
-    grid-template-columns: 20.9mm 22mm 1fr 16mm; /* QR · meio · descrição · preço */
+    grid-template-columns: 19mm 22mm 1fr 16mm; /* QR · meio · descrição · preço */
     background: #fff; color: #000;
     border: 1px solid #000;
     box-sizing: border-box;
@@ -3053,16 +3062,16 @@ var qrcode = function() {
   .etiqueta > div { border-right: 1px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
   .etiqueta > div:last-child { border-right: none; }
   .etq-qr { padding: 1mm; background: #fff; }
-  /* QR fixo em 18.9mm (90% dos 21mm anteriores) — quadrado e centrado na célula */
-  .etq-qr svg { width: 18.9mm; height: 18.9mm; display: block; }
+  /* QR fixo em 17mm (-10% sobre os 18.9mm da v1.30.0) — quadrado e centrado na célula */
+  .etq-qr svg { width: 17mm; height: 17mm; display: block; }
   .etq-meio { padding: 0; }
   .etq-meio > div { width: 100%; border-bottom: 1px solid #000; display: flex; align-items: center; justify-content: center; flex: 1; }
   .etq-meio > div:last-child { border-bottom: none; }
   .etq-pos { font-weight: 700; font-size: 11px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-cod-cell { font-size: 10px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-sgcim { font-size: 8px; letter-spacing: 0.5px; }
-  .etq-descricao { padding: 1mm; font-size: 10.45px; line-height: 1.15; background: #fff; }
-  .etq-preco { padding: 1mm; font-size: 10px; font-weight: 600; background: #fff; }
+  .etq-descricao { padding: 1mm; font-size: 12.54px; line-height: 1.15; background: #fff; }
+  .etq-preco { padding: 1mm; font-size: 9px; font-weight: 600; background: #fff; }
   /* Cor pinta só código + descrição (regra de negócio) */
   .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; }
   .etiqueta.cor-rosa    .etq-cod-cell, .etiqueta.cor-rosa    .etq-descricao { background: #ffd6e7; }
@@ -3121,7 +3130,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.30.0</span>
+  <span class="version">v1.31.0</span>
 </header>
 
 <div class="container">
