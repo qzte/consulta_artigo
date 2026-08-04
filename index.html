@@ -2,11 +2,25 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.32.0
+  Consulta de Artigos — v1.33.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.32.0 (atual)
+  v1.33.0 (atual)
+    - fix: a descrição saía cortada nas etiquetas de artigos com nome
+      comprido — o texto não cabia nos 22.9x23mm e o resto desaparecia
+      (overflow hidden). Agora a letra encolhe automaticamente, em passos de
+      0.25px a partir dos 10px, só nas etiquetas que precisam e só o
+      necessário, até o texto caber inteiro. O limite é 5.5px, que é o
+      mínimo que ainda se lê impresso
+    - fix: palavras muito compridas (referências coladas, sem espaços)
+      passam a ser partidas em vez de saírem da coluna (overflow-wrap)
+    - nota: o ajuste é feito com as etiquetas mensuráveis — no ecrã depois
+      de desenhadas e, na impressão, com a área posta fora do ecrã só o
+      tempo de medir, sempre ANTES do window.print(). Nada é mexido no
+      documento durante a impressão, que é a regra que custou as v1.28.2 a
+      v1.29.1 a acertar
+  v1.32.0
     - fix: as percentagens pedidas para a etiqueta (QR -10%, descrição +20%,
       preço -10%) eram do ESPAÇO ocupado na etiqueta, não do corpo de letra.
       Nas v1.30.0/v1.31.0 tinham sido aplicadas ao font-size, que ficou com
@@ -532,8 +546,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.32.0</title>
-<meta name="description" content="Consulta de Artigos v1.32.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.33.0</title>
+<meta name="description" content="Consulta de Artigos v1.33.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3086,7 +3100,11 @@ var qrcode = function() {
   .etq-pos { font-weight: 700; font-size: 11px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-cod-cell { font-size: 10px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-sgcim { font-size: 8px; letter-spacing: 0.5px; }
+  /* A descrição parte palavras compridas em vez de as deixar sair da coluna;
+     quando mesmo assim não cabe, o ajustarDescricaoEtiqueta() encolhe a letra
+     (font-size inline no .etq-desc-txt) até caber */
   .etq-descricao { padding: 1mm; font-size: 10px; line-height: 1.15; background: #fff; }
+  .etq-desc-txt { display: block; width: 100%; overflow-wrap: anywhere; hyphens: auto; }
   .etq-preco { padding: 1mm; font-size: 10px; font-weight: 600; background: #fff; }
   /* Cor pinta só código + descrição (regra de negócio) */
   .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; }
@@ -3146,7 +3164,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.32.0</span>
+  <span class="version">v1.33.0</span>
 </header>
 
 <div class="container">
@@ -4286,6 +4304,9 @@ function renderModoEtiqueta(q, qRaw, container) {
     </div>
     ${passo2}
   </div></div>${barraHtml}${etiquetasHtml}`;
+  // As etiquetas no ecrã já têm medidas: encolhe a descrição das que não
+  // couberem, para o que se vê ser igual ao que sai impresso.
+  ajustarDescricoesEtiquetas(container);
 }
 
 function selectEtqSupermercado(key) {
@@ -4345,11 +4366,46 @@ function renderEtiqueta(cod, superNome, posicao) {
         <div class="etq-cod-cell">${escHtml(cod)}</div>
         <div class="etq-sgcim">SGCIM</div>
       </div>
-      <div class="etq-descricao">${escHtml(arm.descArtigo || '—')}</div>
+      <div class="etq-descricao"><span class="etq-desc-txt">${escHtml(arm.descArtigo || '—')}</span></div>
       <div class="etq-preco">${escHtml(preco)}</div>
     </div>
     <button type="button" class="etq-print-btn" onclick="imprimirEtiqueta(this)">Imprimir etiqueta</button>
   </div>`;
+}
+
+// A coluna da descrição tem 22.9x23mm; descrições compridas não cabem a
+// 10px e antes eram simplesmente cortadas (overflow hidden). Aqui a letra
+// é encolhida em passos de 0.25px, só nessa etiqueta e só o necessário,
+// até o texto caber — nunca abaixo de 5.5px, que é o limite do que ainda
+// se lê impresso (abaixo disso volta a cortar, como antes).
+//
+// Só funciona com o elemento visível/mensurável: numa área com display:none
+// as medidas vêm a zero e a função sai sem mexer em nada. É por isso que a
+// área de impressão é medida com o truque do "fora do ecrã" (ver
+// prepararAreaDeEtiquetas).
+function ajustarDescricaoEtiqueta(cell) {
+  const txt = cell.querySelector('.etq-desc-txt');
+  if (!txt) return;
+  const cs = window.getComputedStyle(cell);
+  const alturaUtil = cell.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const larguraUtil = cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  if (!(alturaUtil > 0) || !(larguraUtil > 0)) return;
+  let tamanho = 10;
+  txt.style.fontSize = tamanho + 'px';
+  // +0.5px de tolerância: evita encolher por causa de arredondamentos de
+  // sub-pixel quando o texto já cabe à justa.
+  while (tamanho > 5.5 &&
+         (txt.scrollHeight > alturaUtil + 0.5 || txt.scrollWidth > larguraUtil + 0.5)) {
+    tamanho -= 0.25;
+    txt.style.fontSize = tamanho + 'px';
+  }
+}
+
+// Ajusta todas as descrições dentro de um elemento (ecrã ou área de
+// impressão).
+function ajustarDescricoesEtiquetas(root) {
+  if (!root) return;
+  root.querySelectorAll('.etq-descricao').forEach(ajustarDescricaoEtiqueta);
 }
 
 // Impressão: as etiquetas são clonadas para uma área própria
@@ -4400,6 +4456,14 @@ function prepararAreaDeEtiquetas(html, pageCss, lote) {
   area.id = 'etq-print-area';
   area.innerHTML = html;
   document.body.appendChild(area);
+  // A área é display:none no ecrã, e aí nada tem medidas — para ajustar as
+  // descrições que não cabem, mostra-se fora do ecrã só o tempo de medir e
+  // repõem-se os estilos a seguir. Isto acontece SEMPRE antes do print()
+  // (nunca durante uma impressão), por isso não mexe com a regra de não
+  // tocar no documento enquanto a impressão decorre.
+  area.style.cssText = 'display:block;position:absolute;left:-10000px;top:0;';
+  ajustarDescricoesEtiquetas(area);
+  area.style.cssText = '';
   document.body.classList.add('print-etq');
   if (lote) document.body.classList.add('print-lote');
   let style = null;
