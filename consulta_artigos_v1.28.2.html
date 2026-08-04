@@ -2,11 +2,24 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.28.1
+  Consulta de Artigos — v1.28.2
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.28.1 (atual)
+  v1.28.2 (atual)
+    - fix: ao imprimir uma etiqueta, a pré-visualização do browser mostrava
+      VÁRIAS páginas — a etiqueta na primeira e uma série de páginas em
+      branco atrás. A impressão escondia o resto da página com
+      "visibility: hidden", que torna o conteúdo invisível mas mantém-no a
+      ocupar altura: com a folha de 23mm, a altura da app inteira dava
+      dezenas de páginas vazias. As etiquetas passam a ser CLONADAS para
+      uma área própria (#etq-print-area, filho direto do <body>) e todo o
+      resto do body é escondido com "display: none", que não ocupa espaço
+      nenhum — uma etiqueta sai numa página exata de 80x23mm e o lote sai
+      só nas folhas A4 que as etiquetas realmente ocupam. A área e a classe
+      .print-etq são removidas no fim (afterprint, com o mesmo fallback por
+      timeout que o lote já usava)
+  v1.28.1
     - fix: "Usar este código" preenchia a caixa de pesquisa com o código
       lido pela câmara mas não pesquisava nada — era preciso apagar um
       caráter para a app reagir. Preencher o .value por código não dispara
@@ -430,8 +443,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.28.1</title>
-<meta name="description" content="Consulta de Artigos v1.28.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.28.2</title>
+<meta name="description" content="Consulta de Artigos v1.28.2 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -2992,19 +3005,27 @@ var qrcode = function() {
   .etq-lote-td { width: 28px; text-align: center; }
   .etq-lote-cb { width: 16px; height: 16px; accent-color: #2e7d32; cursor: pointer; }
   .etq-lote-bar { display: flex; justify-content: flex-end; margin-top: 10px; }
-  #etq-lote-area { display: none; }
+  /* Área de impressão: as etiquetas a imprimir são CLONADAS para aqui (um
+     filho direto do <body>) e todo o resto do body é escondido com
+     display:none. Antes o resto da página era escondido com
+     visibility:hidden — o conteúdo continuava a ocupar altura e a
+     pré-visualização saía com muitas páginas em branco a seguir à
+     etiqueta. Com display:none só sobra a área de impressão. */
+  #etq-print-area { display: none; }
   @media print {
-    body * { visibility: hidden; }
-    .etiqueta, .etiqueta * { visibility: visible; }
-    /* Impressão de UMA etiqueta (modo Etiqueta): comportamento original. */
-    body:not(.print-lote) .etiqueta { position: absolute; left: 0; top: 0; margin: 0; }
+    body.print-etq { margin: 0; padding: 0; background: #fff; }
+    body.print-etq > *:not(#etq-print-area) { display: none !important; }
+    body.print-etq #etq-print-area { display: block; }
+    body.print-etq #etq-print-area .etiqueta-wrap { display: block; margin: 0; }
+    body.print-etq #etq-print-area .etiqueta { margin: 0; }
+    /* UMA etiqueta (modo Etiqueta): rolo 23x80mm, uma página exata. */
+    body.print-etq:not(.print-lote) #etq-print-area { width: 80mm; height: 23mm; overflow: hidden; }
+    /* LOTE: várias etiquetas seguidas na mesma folha A4 (a regra @page A4
+       é injetada por imprimirEtiquetasLote, para não afetar a impressão
+       de uma etiqueta única em rolo). */
+    body.print-etq.print-lote #etq-print-area .etiqueta { margin: 0 0 3mm; break-inside: avoid; page-break-inside: avoid; }
     .etq-print-btn { display: none; }
     @page { size: 80mm 23mm; margin: 0; }
-    /* Impressão em LOTE: várias etiquetas seguidas na mesma folha A4
-       (a regra @page A4 é injetada por imprimirEtiquetasLote, para não
-       afetar a impressão de uma etiqueta única em rolo). */
-    body.print-lote #etq-lote-area { display: flex; flex-direction: column; gap: 3mm; position: absolute; left: 0; top: 0; visibility: visible; }
-    body.print-lote .etiqueta-wrap { display: block; margin: 0; }
   }
 </style>
 </head>
@@ -3015,7 +3036,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.28.1</span>
+  <span class="version">v1.28.2</span>
 </header>
 
 <div class="container">
@@ -4177,15 +4198,52 @@ function renderEtiqueta(cod, superNome, posicao) {
       <div class="etq-descricao">${escHtml(arm.descArtigo || '—')}</div>
       <div class="etq-preco">${escHtml(preco)}</div>
     </div>
-    <button type="button" class="etq-print-btn" onclick="imprimirEtiqueta()">Imprimir etiqueta</button>
+    <button type="button" class="etq-print-btn" onclick="imprimirEtiqueta(this)">Imprimir etiqueta</button>
   </div>`;
 }
 
-// Impressão: abre o diálogo de impressão do browser. O CSS @media print
-// isola só a etiqueta (esconde o resto da página), para sair no tamanho
-// 23x80mm sem cabeçalhos nem barras da app.
-function imprimirEtiqueta() {
+// Impressão: clona as etiquetas para uma área própria (#etq-print-area,
+// filho direto do body) e marca o body com .print-etq — o CSS @media print
+// esconde tudo o resto com display:none, para sair só a(s) etiqueta(s) sem
+// cabeçalhos, barras da app nem páginas em branco atrás.
+// pageCss é a regra @page opcional (o lote usa A4; uma etiqueta usa o rolo
+// 23x80mm que já vem do CSS base). Limpa tudo no afterprint, com fallback
+// por timeout para browsers que não disparam o evento.
+function imprimirNaAreaDeEtiquetas(html, pageCss) {
+  const anterior = document.getElementById('etq-print-area');
+  if (anterior) anterior.remove();
+  const area = document.createElement('div');
+  area.id = 'etq-print-area';
+  area.innerHTML = html;
+  document.body.appendChild(area);
+  document.body.classList.add('print-etq');
+  let st = null;
+  if (pageCss) {
+    st = document.createElement('style');
+    st.id = 'etq-print-page';
+    st.textContent = pageCss;
+    document.head.appendChild(st);
+  }
+  let limpo = false;
+  const limpar = () => {
+    if (limpo) return;
+    limpo = true;
+    area.remove();
+    if (st) st.remove();
+    document.body.classList.remove('print-etq', 'print-lote');
+    window.removeEventListener('afterprint', limpar);
+  };
+  window.addEventListener('afterprint', limpar);
   window.print();
+  setTimeout(limpar, 1000);
+}
+
+// Uma etiqueta (modo Etiqueta): imprime a etiqueta do botão carregado.
+function imprimirEtiqueta(btn) {
+  const wrap = btn && btn.closest ? btn.closest('.etiqueta-wrap') : null;
+  const etq = (wrap || document).querySelector('.etiqueta');
+  if (!etq) return;
+  imprimirNaAreaDeEtiquetas(etq.outerHTML, '');
 }
 
 // ── Etiquetas em lote (índice de supermercado) ──────────
@@ -4214,7 +4272,7 @@ function renderEtiquetaLote(entry, cods) {
     if (!art) return '';
     return renderEtiqueta(art.cod, entry.nome, art.posicaoTexto || art.posicao || '');
   }).join('');
-  return `<div id="etq-lote-area">${parts}</div>`;
+  return parts;
 }
 
 // Impressão em lote: injeta a área com as etiquetas + regra @page A4
@@ -4231,27 +4289,10 @@ function imprimirEtiquetasLote() {
     .filter(a => etqLoteSel.has(a.cod))
     .sort(compareIndexArtigos)
     .map(a => a.cod);
-  const tmp = document.createElement('div');
-  tmp.innerHTML = renderEtiquetaLote(etqLoteEntryAtual, cods);
-  const area = tmp.firstElementChild;
-  document.body.appendChild(area);
+  const html = renderEtiquetaLote(etqLoteEntryAtual, cods);
+  if (!html) return;
   document.body.classList.add('print-lote');
-  const st = document.createElement('style');
-  st.id = 'etq-lote-page';
-  st.textContent = '@media print { @page { size: A4; margin: 10mm; } }';
-  document.head.appendChild(st);
-  let limpo = false;
-  const limpar = () => {
-    if (limpo) return;
-    limpo = true;
-    area.remove();
-    st.remove();
-    document.body.classList.remove('print-lote');
-    window.removeEventListener('afterprint', limpar);
-  };
-  window.addEventListener('afterprint', limpar);
-  window.print();
-  setTimeout(limpar, 1000);
+  imprimirNaAreaDeEtiquetas(html, '@media print { @page { size: A4; margin: 10mm; } }');
 }
 
 // Faz scroll até à zona de resultados — usado pelos dois saltos recíprocos
