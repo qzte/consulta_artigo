@@ -2,11 +2,51 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.27.1
+  Consulta de Artigos — v1.28.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.27.1 (atual)
+  v1.28.0 (atual)
+    - fix: o scan ao vivo NUNCA conseguia ler um código de barras. Desde a
+      v1.18.0 que o código de barras era procurado no mesmo fotograma já
+      preparado para o OCR — e esse fotograma está recortado à faixa
+      estreita da LINHA DO NÚMERO, quando o código de barras da etiqueta
+      está POR BAIXO do texto. Ou seja, a imagem entregue ao ZXing nem
+      sequer continha o código de barras. Mesmo quando apanhava parte das
+      barras, o recorte cortava as margens brancas laterais que o Code 39
+      exige, e o preto-e-branco por limiar único destruía as barras finas.
+      O código de barras passa a ser lido do fotograma INTEIRO, sem
+      recorte nem preto-e-branco; o OCR mantém o recorte, que é o que lhe
+      faz falta
+    - fix: uma falha a descarregar o motor de OCR fechava a câmara e
+      acabava o scan — levando atrás a leitura de códigos de barras, que
+      não precisa de rede nenhuma. Numa rede que bloqueie os domínios do
+      Tesseract, isto deixava o scan completamente inútil. Agora perde-se
+      só o OCR e o código de barras continua a funcionar
+    - fix: com as bibliotecas de CDN em falta, o scan rebentava a meio e
+      deixava o overlay aberto com a câmara ligada e sem mensagem nenhuma.
+      Passa a haver verificação e aviso antes de abrir a câmara
+    - fix: o limiar de preto-e-branco do OCR estava fixo em 150, valor que
+      só serve com a etiqueta bem iluminada — na sombra do armazém a
+      imagem ficava toda preta e sob o foco ficava toda branca, e em
+      qualquer dos casos o motor não tinha nada para ler. O limiar passa a
+      ser calculado a partir da própria imagem (método de Otsu)
+    - perf: o código de barras passa a ser tentado a cada ~0,12 s, num
+      ciclo próprio, em vez de esperar pelo OCR e pelos 1,5 s seguintes.
+      Antes havia cerca de uma tentativa a cada 2-4 segundos, e quase
+      nunca calhava num fotograma nítido
+    - change: um código de barras lido passa a ser aceite à primeira, sem
+      a confirmação por 2 leituras iguais seguidas (que se mantém para o
+      OCR). O ZXing só dá um Code 39/EAN como lido depois de validar a
+      estrutura das barras — repetir só obrigava a segurar o telemóvel
+      imóvel mais uns segundos sem ganho nenhum de fiabilidade
+    - fix: a câmara era aberta sem pedir resolução, e muitos telemóveis
+      davam 640x480 — depois de recortar a faixa, sobrava texto
+      irreconhecível. Passa a pedir-se a resolução mais alta disponível e
+      a ligar-se o foco automático contínuo quando o aparelho o suporta.
+      O pedido de câmara traseira passa a ser "ideal" em vez de exato, que
+      fazia o scan não abrir de todo em aparelhos sem traseira declarada
+  v1.27.1
     - fix (segurança): a biblioteca que lê os ficheiros Excel (SheetJS/xlsx)
       estava fixada na 0.18.5 vinda do cdnjs, que tem duas vulnerabilidades
       conhecidas — prototype pollution (CVE-2023-30533) e ReDoS
@@ -380,8 +420,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.27.1</title>
-<meta name="description" content="Consulta de Artigos v1.27.1 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.28.0</title>
+<meta name="description" content="Consulta de Artigos v1.28.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -2965,7 +3005,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.27.1</span>
+  <span class="version">v1.28.0</span>
 </header>
 
 <div class="container">
@@ -3064,7 +3104,13 @@ var qrcode = function() {
       </div>
     </div>
   </div>
+  <!-- Dois canvas separados de propósito: o do OCR leva a faixa recortada,
+       ampliada e a preto e branco; o do código de barras leva o fotograma
+       inteiro em cor (ver prepararFotogramaParaCodigoBarras). Partilhar um
+       só canvas entre as duas vias era o que impedia a leitura de códigos
+       de barras até à v1.27.1. -->
   <canvas id="scan-canvas" style="display:none"></canvas>
+  <canvas id="scan-canvas-barcode" style="display:none"></canvas>
 
   <!-- RESULTS -->
   <div id="results">
@@ -4320,10 +4366,58 @@ function calcularRetanguloRecorte(videoWidth, videoHeight, wrapAspect, inset) {
   };
 }
 
+// Escolhe sozinho o ponto de corte entre "preto" e "branco" (método de
+// Otsu: o limiar que melhor separa a imagem em dois grupos de brilho).
+// Até à v1.27.1 o limiar era fixo em 150, o que só funciona com a
+// etiqueta bem iluminada: à luz do armazém, uma etiqueta na sombra ficava
+// toda preta e uma debaixo do foco ficava toda branca — em qualquer dos
+// casos o OCR recebia uma imagem sem nada para ler e nunca devolvia
+// número nenhum. Testado isoladamente em ocr-helpers.test.mjs.
+function calcularLimiarOtsu(data) {
+  const histograma = new Array(256).fill(0);
+  let totalPixeis = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    const cinza = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    histograma[cinza]++;
+    totalPixeis++;
+  }
+  if (!totalPixeis) return 128;
+  let somaTotal = 0;
+  for (let nivel = 0; nivel < 256; nivel++) somaTotal += nivel * histograma[nivel];
+  let somaFundo = 0, pesoFundo = 0, melhorVariancia = -1;
+  // Todos os níveis SEM PIXÉIS entre as duas modas dão exatamente a mesma
+  // variância, formando um "planalto" de empates. Ficar pelo primeiro
+  // empate encosta o limiar à moda escura e volta a pôr quase tudo branco
+  // — era o que acontecia antes de se guardar o intervalo todo e cortar a
+  // meio dele.
+  let primeiroMelhor = 128, ultimoMelhor = 128;
+  for (let nivel = 0; nivel < 256; nivel++) {
+    pesoFundo += histograma[nivel];
+    if (!pesoFundo) continue;
+    const pesoFrente = totalPixeis - pesoFundo;
+    if (!pesoFrente) break;
+    somaFundo += nivel * histograma[nivel];
+    const mediaFundo = somaFundo / pesoFundo;
+    const mediaFrente = (somaTotal - somaFundo) / pesoFrente;
+    const variancia = pesoFundo * pesoFrente * (mediaFundo - mediaFrente) ** 2;
+    if (variancia > melhorVariancia) {
+      melhorVariancia = variancia;
+      primeiroMelhor = ultimoMelhor = nivel;
+    } else if (variancia === melhorVariancia) {
+      ultimoMelhor = nivel;
+    }
+  }
+  // +1 porque quem usa este valor (aplicarLimiarPB) compara com ">=": o
+  // nível devolvido por Otsu é o ÚLTIMO do fundo, logo o primeiro nível
+  // branco é o seguinte.
+  return Math.min(255, Math.round((primeiroMelhor + ultimoMelhor) / 2) + 1);
+}
+
 // (B) Converte a preto e branco "puro" (threshold), para ajudar o OCR a
-// distinguir melhor os traços do número do fundo da etiqueta. Testado
-// isoladamente em ocr-helpers.test.mjs.
-function aplicarLimiarPB(data, limiar = 150) {
+// distinguir melhor os traços do número do fundo da etiqueta. Sem limiar
+// explícito, calcula-o a partir da própria imagem (ver calcularLimiarOtsu).
+// Testado isoladamente em ocr-helpers.test.mjs.
+function aplicarLimiarPB(data, limiar = calcularLimiarOtsu(data)) {
   for (let i = 0; i < data.length; i += 4) {
     const cinza = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
     const valor = cinza >= limiar ? 255 : 0;
@@ -4371,13 +4465,92 @@ let scanLoopAtivo = false;
 let scanCandidatoAtual = '';
 let scanEstadoLeitura = { ultima: '', count: 0 };
 
-// Tempo de espera entre tentativas de leitura. Isto é A PARTIR do fim da
+// Tempo de espera entre tentativas de OCR. Isto é A PARTIR do fim da
 // tentativa anterior (nunca em paralelo), para não sobrecarregar o
 // aparelho com pedidos de OCR acumulados.
 const SCAN_INTERVALO_MS = 1500;
 
+// Tempo de espera entre tentativas de código de barras. É MUITO mais
+// curto do que o do OCR de propósito: ler um código de barras num
+// fotograma custa poucos milissegundos (o OCR custa centenas), e o que
+// decide se a leitura resulta é apanhar o instante em que a câmara está
+// focada e direita. Até à v1.27.1 as duas vias partilhavam o mesmo ciclo
+// de 1,5 s E o código de barras só era tentado DEPOIS de o OCR anterior
+// terminar — na prática dava-se ao código de barras uma oportunidade a
+// cada 2-4 segundos, e quase nunca calhava num fotograma nítido.
+const SCAN_BARCODE_INTERVALO_MS = 120;
+
+// Formatos que interessam mesmo: as etiquetas usam Code 39, e os artigos
+// embalados trazem EAN/UPC. Restringir a lista (em vez de deixar o ZXing
+// tentar todos os formatos que conhece, incluindo os 2D) torna cada
+// tentativa mais rápida e reduz leituras erradas. TRY_HARDER autoriza o
+// ZXing a gastar mais esforço por fotograma — compensa, porque agora há
+// muitas mais tentativas por segundo.
+function criarLeitorCodigoBarras() {
+  const LeitorZXing = ZXingBrowser.BrowserMultiFormatReader;
+  try {
+    const { BarcodeFormat, DecodeHintType } = ZXingBrowser;
+    if (!BarcodeFormat || !DecodeHintType) return new LeitorZXing();
+    const hints = new Map();
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+      BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.ITF,
+      BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A,
+    ]);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    return new LeitorZXing(hints);
+  } catch (err) {
+    // Uma versão do ZXing que não exponha estes símbolos não deve deixar
+    // o scan sem leitor nenhum — vale mais um leitor sem afinação.
+    return new LeitorZXing();
+  }
+}
+
+// Pede à câmara a maior resolução que ela conseguir dar. Os dígitos da
+// etiqueta ocupam poucos pixels; com os 640x480 que muitos telemóveis dão
+// por omissão, depois de recortar a faixa da moldura sobra texto
+// irreconhecível. facingMode vai como "ideal" (não exato) de propósito:
+// num aparelho sem câmara traseira identificada, "exact" faz o
+// getUserMedia falhar por inteiro e o scan nem abria.
+const SCAN_CAMERA_CONSTRAINTS = {
+  video: {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  },
+};
+
+// Liga o foco automático contínuo quando o aparelho o suporta. Sem isto,
+// muitas câmaras fixam o foco no primeiro plano e a etiqueta fica sempre
+// desfocada — nem o código de barras nem o OCR conseguem ler uma imagem
+// desfocada, por muitas tentativas que se façam.
+async function tentarFocoContinuo(stream) {
+  try {
+    const track = stream.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== 'function') return;
+    const caps = track.getCapabilities();
+    if (caps.focusMode && caps.focusMode.includes('continuous')) {
+      await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    }
+  } catch (err) {
+    // Aparelho/browser que não deixa mexer no foco — segue com o foco dele.
+  }
+}
+
 async function abrirScanAoVivo() {
   hideOcrMsg();
+
+  // As duas bibliotecas vêm de CDN e podem faltar (rede da instituição a
+  // bloquear o domínio, primeira visita sem internet). Sem esta
+  // verificação, o `new ZXingBrowser...` rebentava com ReferenceError a
+  // meio da função e deixava o overlay aberto com a câmara ligada e sem
+  // mensagem nenhuma — exatamente o sintoma de "abre mas não lê nada".
+  const temZXing = typeof ZXingBrowser !== 'undefined';
+  const temTesseract = typeof Tesseract !== 'undefined';
+  if (!temZXing && !temTesseract) {
+    showOcrMsg('As bibliotecas de leitura não foram carregadas. Liga-te à internet uma vez para as descarregar e tenta outra vez.');
+    return;
+  }
+
   const overlay = document.getElementById('scan-overlay');
   document.getElementById('scan-candidate').style.display = 'none';
   scanCandidatoAtual = '';
@@ -4386,42 +4559,71 @@ async function abrirScanAoVivo() {
   overlay.classList.add('open');
 
   try {
-    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    scanStream = await navigator.mediaDevices.getUserMedia(SCAN_CAMERA_CONSTRAINTS);
   } catch (err) {
-    overlay.classList.remove('open');
-    showOcrMsg('Não foi possível aceder à câmara. Verifica as permissões do browser e tenta novamente.');
-    return;
+    // Segunda tentativa sem exigências de resolução: há câmaras (webcams
+    // antigas, alguns tablets) que recusam 1920x1080 e só aceitam o pedido
+    // mínimo. Vale mais abrir em baixa resolução do que não abrir.
+    try {
+      scanStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    } catch (err2) {
+      overlay.classList.remove('open');
+      showOcrMsg('Não foi possível aceder à câmara. Verifica as permissões do browser e tenta novamente.');
+      return;
+    }
   }
+
+  await tentarFocoContinuo(scanStream);
 
   const video = document.getElementById('scan-video');
   video.srcObject = scanStream;
   try { await video.play(); } catch (err) { /* alguns browsers já dão play automático */ }
 
+  // Leitor de código de barras (ZXing) — as etiquetas têm um código de
+  // barras Code 39 por baixo do texto, bem mais fiável de ler do que o
+  // texto por OCR. Criado ANTES do motor de OCR de propósito: o ZXing já
+  // está todo carregado nesta altura, enquanto o Tesseract ainda tem de ir
+  // buscar vários MB à rede — e uma falha nessa descarga não pode levar
+  // atrás a leitura de códigos de barras (ver abaixo).
+  if (temZXing) scanBarcodeReader = criarLeitorCodigoBarras();
+
   // (A) Cria o motor de OCR uma única vez por sessão de scan (não a cada
   // fotograma — recriá-lo seria bem mais lento), já configurado para só
   // reconhecer dígitos e tratar a imagem como uma linha única de texto.
-  document.getElementById('scan-status').textContent = 'A preparar leitura…';
-  try {
-    scanWorker = await Tesseract.createWorker('eng');
-    await scanWorker.setParameters({
-      tessedit_char_whitelist: '0123456789',
-      tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
-    });
-  } catch (err) {
+  if (temTesseract) {
+    document.getElementById('scan-status').textContent = 'A preparar leitura…';
+    try {
+      scanWorker = await Tesseract.createWorker('eng');
+      await scanWorker.setParameters({
+        tessedit_char_whitelist: '0123456789',
+        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+      });
+    } catch (err) {
+      // O Tesseract descarrega o motor e os dados de idioma de OUTROS
+      // domínios em runtime, que podem estar bloqueados mesmo com a app a
+      // funcionar. Até à v1.27.1 isto fechava a câmara e acabava o scan —
+      // ou seja, uma CDN bloqueada tirava também o código de barras, que
+      // nem precisa de rede nenhuma. Agora só se perde o OCR.
+      scanWorker = null;
+    }
+  }
+
+  if (!scanBarcodeReader && !scanWorker) {
     fecharScanAoVivo();
     showOcrMsg('Não foi possível preparar o motor de leitura. Tenta novamente.');
     return;
   }
 
-  // Leitor de código de barras (ZXing) — as etiquetas têm um código de
-  // barras Code 39 por baixo do texto, bem mais fiável de ler do que o
-  // texto por OCR. Tentado primeiro em cada fotograma (ver loopScan);
-  // só se não encontrar nada é que se recorre ao OCR como reserva.
-  scanBarcodeReader = new ZXingBrowser.BrowserMultiFormatReader();
+  document.getElementById('scan-status').textContent = scanWorker
+    ? 'A tentar ler o código…'
+    : 'A tentar ler o código de barras… (leitura de texto indisponível)';
 
-  document.getElementById('scan-status').textContent = 'A tentar ler o código…';
   scanLoopAtivo = true;
-  loopScan();
+  // Dois ciclos independentes, cada um ao seu ritmo (ver os comentários
+  // dos intervalos acima). Correm em paralelo e param os dois com
+  // scanLoopAtivo.
+  if (scanBarcodeReader) loopCodigoBarras();
+  if (scanWorker) loopOcr();
 }
 
 // Fecha a câmara, liberta o motor de OCR e o leitor de código de barras, e
@@ -4429,6 +4631,8 @@ async function abrirScanAoVivo() {
 // confirmar um candidato.
 function fecharScanAoVivo() {
   scanLoopAtivo = false;
+  scanCandidatoAtual = '';
+  scanEstadoLeitura = { ultima: '', count: 0 };
   if (scanStream) {
     scanStream.getTracks().forEach(t => t.stop());
     scanStream = null;
@@ -4494,6 +4698,30 @@ function prepararFotogramaParaOcr(video, canvas) {
   return canvas;
 }
 
+// Prepara o fotograma para o CÓDIGO DE BARRAS: o fotograma inteiro, tal
+// como sai da câmara, sem recorte nem preto-e-branco.
+//
+// Esta função é a correção central da v1.28.0. Até aqui o código de
+// barras era lido do MESMO canvas preparado para o OCR, e esse canvas é
+// inútil para um leitor de códigos de barras por três razões
+// independentes, cada uma bastando para nunca haver leitura nenhuma:
+//   1. o recorte é uma faixa estreita apontada à LINHA DO NÚMERO, e o
+//      código de barras da etiqueta está POR BAIXO do texto — ou seja,
+//      fora do recorte. O ZXing recebia uma imagem que nem sequer continha
+//      o código de barras;
+//   2. mesmo apanhando parte das barras, o recorte corta as margens
+//      brancas laterais ("quiet zones"), que o Code 39 exige para ser
+//      reconhecido;
+//   3. o preto-e-branco por limiar único destrói as barras finas, e é
+//      trabalho a dobrar: o ZXing já faz a sua própria binarização, local
+//      e bastante melhor, a partir da imagem em tons de cinzento.
+function prepararFotogramaParaCodigoBarras(video, canvas) {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  return canvas;
+}
+
 // Tenta ler o código de barras (ZXing) no fotograma. Devolve os dígitos
 // encontrados, ou '' se não houver nenhum código de barras nesse
 // fotograma — isto é o caso normal em muitas tentativas (a etiqueta pode
@@ -4507,42 +4735,62 @@ async function tentarLerCodigoBarras(fotograma) {
   }
 }
 
-// Ciclo de leitura: prepara um fotograma e tenta, por ordem, código de
-// barras (mais rápido e fiável — ver tentarLerCodigoBarras) e, só se não
-// encontrar nada, OCR de texto como reserva. Espera SCAN_INTERVALO_MS
-// antes de repetir. Continua indefinidamente até scanLoopAtivo passar a
-// false (fechar ou confirmar). Só mostra um candidato como "encontrado"
-// depois de a mesma leitura sair 2 vezes seguidas
-// (processarLeituraConsecutiva) — antes disso, continua a tentar em
-// silêncio, sem interromper nem alarmar com leituras isoladas.
-async function loopScan() {
+// Mostra um candidato encontrado e deixa a decisão à pessoa. Os dois
+// ciclos param de ler enquanto houver candidato à espera de resposta
+// (testam scanCandidatoAtual), e voltam a ler em continuarScan().
+function mostrarCandidato(digitos) {
+  scanCandidatoAtual = digitos;
+  document.getElementById('scan-candidate-num').textContent = digitos;
+  document.getElementById('scan-candidate').style.display = 'flex';
+  document.getElementById('scan-status').textContent = 'Código encontrado:';
+}
+
+// Ciclo do código de barras: tenta a cada SCAN_BARCODE_INTERVALO_MS, sobre
+// o fotograma inteiro.
+//
+// Ao contrário do OCR, uma leitura basta — não se exigem 2 leituras
+// iguais seguidas. Um código de barras Code 39/EAN só é dado como lido
+// depois de o próprio ZXing validar a estrutura das barras (e, no EAN, o
+// dígito de controlo); confirmar outra vez só obrigava a pessoa a segurar
+// o telemóvel imóvel mais uns segundos sem nada ganhar em fiabilidade.
+async function loopCodigoBarras() {
+  const video  = document.getElementById('scan-video');
+  const canvas = document.getElementById('scan-canvas-barcode');
+
+  while (scanLoopAtivo) {
+    if (video.videoWidth && !scanCandidatoAtual) {
+      const digitos = await tentarLerCodigoBarras(prepararFotogramaParaCodigoBarras(video, canvas));
+      if (!scanLoopAtivo) break; // fechado/confirmado enquanto a leitura corria
+      if (digitos) mostrarCandidato(digitos);
+    }
+    if (!scanLoopAtivo) break;
+    await new Promise(resolve => setTimeout(resolve, SCAN_BARCODE_INTERVALO_MS));
+  }
+}
+
+// Ciclo do OCR (reserva, para etiquetas em que o código de barras está
+// rasgado, tapado ou gasto): recorta a faixa da moldura, amplia-a e
+// converte-a a preto e branco antes de a enviar ao Tesseract. Espera
+// SCAN_INTERVALO_MS entre tentativas. Aqui a confirmação por 2 leituras
+// iguais seguidas mantém-se: o OCR não tem forma de validar o que leu, e
+// uma leitura isolada mal interpretada é comum.
+async function loopOcr() {
   const video  = document.getElementById('scan-video');
   const canvas = document.getElementById('scan-canvas');
 
   while (scanLoopAtivo) {
-    if (video.videoWidth) {
-      const fotograma = prepararFotogramaParaOcr(video, canvas);
-
-      let digitos = await tentarLerCodigoBarras(fotograma);
-      if (!scanLoopAtivo) break; // fechado/confirmado enquanto a leitura corria
-
-      if (!digitos) {
-        try {
-          const { data: { text } } = await scanWorker.recognize(fotograma);
-          if (!scanLoopAtivo) break; // fechado/confirmado enquanto o OCR corria
-          digitos = digitosValidos(text);
-        } catch (err) {
-          // Falha pontual de leitura (ex: fotograma desfocado) — ignora-se e
-          // tenta-se outra vez no próximo ciclo, sem interromper o scan.
+    if (video.videoWidth && !scanCandidatoAtual) {
+      try {
+        const fotograma = prepararFotogramaParaOcr(video, canvas);
+        const { data: { text } } = await scanWorker.recognize(fotograma);
+        if (!scanLoopAtivo) break; // fechado/confirmado enquanto o OCR corria
+        scanEstadoLeitura = processarLeituraConsecutiva(scanEstadoLeitura, digitosValidos(text));
+        if (scanEstadoLeitura.confirmado && !scanCandidatoAtual) {
+          mostrarCandidato(scanEstadoLeitura.ultima);
         }
-      }
-
-      scanEstadoLeitura = processarLeituraConsecutiva(scanEstadoLeitura, digitos);
-      if (scanEstadoLeitura.confirmado) {
-        scanCandidatoAtual = scanEstadoLeitura.ultima;
-        document.getElementById('scan-candidate-num').textContent = scanCandidatoAtual;
-        document.getElementById('scan-candidate').style.display = 'flex';
-        document.getElementById('scan-status').textContent = 'Código encontrado:';
+      } catch (err) {
+        // Falha pontual de leitura (ex: fotograma desfocado) — ignora-se e
+        // tenta-se outra vez no próximo ciclo, sem interromper o scan.
       }
     }
     if (!scanLoopAtivo) break;
