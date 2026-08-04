@@ -1,14 +1,16 @@
 {
+  "id": "./",
   "name": "Consulta de Artigos",
   "short_name": "Artigos",
   "description": "Consulta de armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.",
-  "start_url": "./consulta_artigos_v1.26.0.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#f5f4f0",
   "theme_color": "#1a4fa0",
   "lang": "pt-PT",
+  "dir": "ltr",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
