@@ -2,11 +2,25 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.33.0
+  Consulta de Artigos — v1.34.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.33.0 (atual)
+  v1.34.0 (atual)
+    - feat: a descrição passa a USAR TODO o espaço da sua coluna. Na v1.33.0
+      a letra era de 10px e só encolhia, por isso os nomes curtos saíam
+      pequenos com a célula meia vazia. Agora procura-se o MAIOR tamanho que
+      ainda cabe inteiro (entre 5.5px e 20px, em passos de 0.25px): cresce
+      nos nomes curtos e encolhe nos compridos
+    - fix: as palavras deixam de ser partidas por defeito — parte-se a letra
+      em vez da palavra. Só se parte quando manter as palavras inteiras
+      obrigasse a descer abaixo dos 10px (ex.: "ACIDO ACETILSALICILICO -> IMV
+      FRAMP 500 MG", em que a palavra comprida limitava a 8.5px e sobrava um
+      terço da altura; assim sobe para 13.25px) ou quando a descrição é uma
+      referência comprida sem espaços, que de outra forma não caberia
+    - nota: a procura do tamanho é binária (~7 medições por etiqueta em vez
+      de ~90), o que se nota ao imprimir um lote grande numa folha A4
+  v1.33.0
     - fix: a descrição saía cortada nas etiquetas de artigos com nome
       comprido — o texto não cabia nos 22.9x23mm e o resto desaparecia
       (overflow hidden). Agora a letra encolhe automaticamente, em passos de
@@ -546,8 +560,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.33.0</title>
-<meta name="description" content="Consulta de Artigos v1.33.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.34.0</title>
+<meta name="description" content="Consulta de Artigos v1.34.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3100,11 +3114,13 @@ var qrcode = function() {
   .etq-pos { font-weight: 700; font-size: 11px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-cod-cell { font-size: 10px; font-family: 'Cascadia Code', 'Courier New', monospace; }
   .etq-sgcim { font-size: 8px; letter-spacing: 0.5px; }
-  /* A descrição parte palavras compridas em vez de as deixar sair da coluna;
-     quando mesmo assim não cabe, o ajustarDescricaoEtiqueta() encolhe a letra
-     (font-size inline no .etq-desc-txt) até caber */
+  /* O ajustarDescricaoEtiqueta() escreve o font-size final inline no
+     .etq-desc-txt, procurando o maior que ainda cabe na célula. Por defeito
+     as palavras não se partem (overflow-wrap: normal): parte-se a letra em
+     vez da palavra. Só quando nem no tamanho mínimo cabe é que o JS mete
+     overflow-wrap: anywhere para partir referências compridas sem espaços */
   .etq-descricao { padding: 1mm; font-size: 10px; line-height: 1.15; background: #fff; }
-  .etq-desc-txt { display: block; width: 100%; overflow-wrap: anywhere; hyphens: auto; }
+  .etq-desc-txt { display: block; width: 100%; overflow-wrap: normal; }
   .etq-preco { padding: 1mm; font-size: 10px; font-weight: 600; background: #fff; }
   /* Cor pinta só código + descrição (regra de negócio) */
   .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; }
@@ -3164,7 +3180,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.33.0</span>
+  <span class="version">v1.34.0</span>
 </header>
 
 <div class="container">
@@ -4373,16 +4389,32 @@ function renderEtiqueta(cod, superNome, posicao) {
   </div>`;
 }
 
-// A coluna da descrição tem 22.9x23mm; descrições compridas não cabem a
-// 10px e antes eram simplesmente cortadas (overflow hidden). Aqui a letra
-// é encolhida em passos de 0.25px, só nessa etiqueta e só o necessário,
-// até o texto caber — nunca abaixo de 5.5px, que é o limite do que ainda
-// se lê impresso (abaixo disso volta a cortar, como antes).
+// A descrição usa TODO o espaço da sua coluna (22.9x23mm): a letra é
+// procurada nos dois sentidos — cresce nos nomes curtos e encolhe nos
+// compridos — ficando com o maior tamanho que ainda cabe inteiro.
+//
+// Antes o tamanho era fixo em 10px e só encolhia (v1.33.0): os nomes curtos
+// ficavam pequenos com a célula meia vazia, que é o que se via nas etiquetas
+// impressas.
+//
+// Limites: DESC_MIN é o mínimo que ainda se lê impresso (abaixo disso o
+// texto voltaria a ser cortado, como antes); DESC_MAX evita que uma
+// descrição de uma palavra fique com um corpo desproporcionado ao resto da
+// etiqueta. A procura é binária em passos de 0.25px — ~7 medições por
+// etiqueta em vez das ~90 de um varrimento, o que conta quando se imprime
+// um lote grande numa folha A4.
 //
 // Só funciona com o elemento visível/mensurável: numa área com display:none
 // as medidas vêm a zero e a função sai sem mexer em nada. É por isso que a
 // área de impressão é medida com o truque do "fora do ecrã" (ver
 // prepararAreaDeEtiquetas).
+const DESC_MIN = 5.5;
+const DESC_MAX = 20;
+const DESC_PASSO = 0.25;
+// Abaixo deste tamanho já não vale a pena manter palavras inteiras (ver
+// ajustarDescricaoEtiqueta). É o tamanho que a descrição tinha fixo antes.
+const DESC_BASE = 10;
+
 function ajustarDescricaoEtiqueta(cell) {
   const txt = cell.querySelector('.etq-desc-txt');
   if (!txt) return;
@@ -4390,15 +4422,50 @@ function ajustarDescricaoEtiqueta(cell) {
   const alturaUtil = cell.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   const larguraUtil = cell.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   if (!(alturaUtil > 0) || !(larguraUtil > 0)) return;
-  let tamanho = 10;
-  txt.style.fontSize = tamanho + 'px';
-  // +0.5px de tolerância: evita encolher por causa de arredondamentos de
-  // sub-pixel quando o texto já cabe à justa.
-  while (tamanho > 5.5 &&
-         (txt.scrollHeight > alturaUtil + 0.5 || txt.scrollWidth > larguraUtil + 0.5)) {
-    tamanho -= 0.25;
-    txt.style.fontSize = tamanho + 'px';
+
+  // +0.5px de tolerância: evita rejeitar um tamanho por causa de
+  // arredondamentos de sub-pixel quando o texto cabe mesmo à justa.
+  const cabe = (px) => {
+    txt.style.fontSize = px + 'px';
+    return txt.scrollHeight <= alturaUtil + 0.5 && txt.scrollWidth <= larguraUtil + 0.5;
+  };
+
+  // Maior tamanho que ainda cabe, por procura binária. Devolve null quando
+  // nem no mínimo cabe.
+  const procurar = () => {
+    if (!cabe(DESC_MIN)) return null;
+    let cabeSempre = DESC_MIN;
+    let jaNaoCabe = DESC_MAX + DESC_PASSO;
+    while (jaNaoCabe - cabeSempre > DESC_PASSO) {
+      const meio = Math.round(((cabeSempre + jaNaoCabe) / 2) / DESC_PASSO) * DESC_PASSO;
+      if (cabe(meio)) cabeSempre = meio;
+      else jaNaoCabe = meio;
+    }
+    return cabeSempre;
+  };
+
+  // Primeira tentativa com as palavras inteiras: se uma palavra não couber
+  // na linha, transborda em largura, o tamanho é rejeitado e a letra desce.
+  txt.style.overflowWrap = 'normal';
+  const inteiras = procurar();
+
+  // Palavras inteiras é o que se lê melhor, mas não à custa de letra
+  // minúscula com meia célula vazia (era o caso de "ACIDO ACETILSALICILICO
+  // -> IMV FRAMP 500 MG": a palavra comprida obrigava a 8.5px e sobrava
+  // um terço da altura). Por isso: enquanto as palavras inteiras derem pelo
+  // menos DESC_BASE, ficam inteiras; abaixo disso vale mais partir a palavra
+  // e usar o espaço todo.
+  let tamanho = inteiras;
+  if (inteiras === null || inteiras < DESC_BASE) {
+    txt.style.overflowWrap = 'anywhere';
+    const partidas = procurar();
+    if (partidas !== null && (inteiras === null || partidas > inteiras)) {
+      tamanho = partidas;
+    } else {
+      txt.style.overflowWrap = 'normal';
+    }
   }
+  cabe(tamanho === null ? DESC_MIN : tamanho);
 }
 
 // Ajusta todas as descrições dentro de um elemento (ecrã ou área de
