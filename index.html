@@ -2,11 +2,79 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.26.0
+  Consulta de Artigos — v1.27.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.26.0 (atual)
+  v1.27.0 (atual)
+    - fix: "Trocar ficheiros" não permitia trocar ficheiro nenhum. Depois
+      de um ficheiro ser carregado, o seu cartão ficava sem resposta ao
+      clique (onclick = null), por isso reabrir a zona de upload mostrava
+      dois cartões mortos — a única forma de substituir um ficheiro era
+      "Esquecer ficheiros" e voltar a carregar os dois. Os cartões passam
+      a continuar clicáveis depois de carregados
+    - fix: escolher OUTRA VEZ o MESMO ficheiro (caso normal quando se
+      volta a exportar o Excel com o mesmo nome) não fazia nada — o
+      browser não dispara "change" se o valor do input não mudou. O input
+      passa a ser reposto a seguir a cada escolha
+    - fix: largar o ficheiro errado no cartão errado (o Consumo em
+      "Supermercados", por exemplo) era aceite em silêncio e dava "0
+      artigos" sem explicação. Passa a haver validação do cabeçalho antes
+      de substituir os dados, com aviso a dizer que o ficheiro parece ser
+      o do outro cartão. Ficheiros ilegíveis (não-xlsx, corrompidos) e
+      falhas de leitura também deixam de falhar em silêncio, e um ficheiro
+      inválido já não é guardado no dispositivo
+    - fix: modo offline podia nunca chegar a funcionar. O Service Worker
+      guardava tudo (ficheiros da app + 3 bibliotecas de CDN) num único
+      cache.addAll, por isso bastava uma CDN estar em baixo ou bloqueada
+      pela rede da instituição para TODO o precache falhar — incluindo o
+      HTML e os ícones — sem sinal nenhum. Os ficheiros da app passam a
+      ser guardados à parte e as bibliotecas em modo best-effort
+    - fix: a biblioteca ZXing vinha de "@latest" (alvo em movimento: uma
+      versão nova podia partir o scan sem nada mudar aqui) e por um URL
+      que responde com redirecionamento — e respostas redirecionadas não
+      podem ser guardadas em cache, pelo que o scan por código de barras
+      nunca ficava disponível offline. Versão fixada em 0.2.1, com o
+      caminho completo do ficheiro
+    - fix: Service Worker guardava também respostas de erro (404/500) por
+      cima da cópia boa, que passavam a ser o que a app mostrava offline;
+      e tentava usar a cache em pedidos que a Cache API não aceita (não-GET,
+      esquemas como chrome-extension:), o que dava exceções
+    - fix: a caixa de pesquisa do modo "Etiqueta" (v1.25.0) tinha ficado
+      de fora das regras de CSS das outras duas caixas e aparecia com o
+      aspeto por omissão do browser — estreita, sem cantos redondos e sem
+      espaço para o ícone da lupa
+    - fix: saltar de uma ficha para outro modo (clicar num badge de
+      supermercado ou no código de um artigo) só repunha os modos
+      "Artigos" e "Supermercados"; vindo do modo "Etiqueta", o botão
+      Etiqueta ficava marcado como ativo e a sua caixa de texto visível ao
+      lado da caixa do modo de destino. A troca de modo passa a estar toda
+      num sítio só (aplicarModoUI)
+    - fix: o "x" de limpar pesquisa não limpava o supermercado/artigo
+      escolhidos no modo "Etiqueta" — voltavam a aparecer escolhidos na
+      pesquisa seguinte
+    - fix: ao fechar a câmara, o último fotograma ficava congelado no
+      elemento de vídeo e reaparecia por um instante na abertura seguinte,
+      como se já estivesse a ler
+    - fix: manifest.json e sw.js deixam de depender do nome VERSIONADO do
+      HTML (start_url passa a "./", fallback offline a "./index.html").
+      Antes, esquecer de atualizar esses nomes numa subida de versão fazia
+      a app instalada abrir um ficheiro que já não existia. O manifest
+      ganha também "id", para a app instalada manter a identidade
+    - perf: pesquisa deixa de normalizar (NFD + regex) o texto de todos os
+      artigos, supermercados e serviços a CADA tecla premida — passa a
+      haver um índice calculado uma vez e reutilizado. Com 6000 artigos, a
+      pesquisa por artigo passou de ~8,8ms para ~1,6ms por tecla
+    - feat: as etiquetas em lote passam a sair pela mesma ordem em que os
+      artigos aparecem na tabela (a ordenação escolhida nos cabeçalhos),
+      não pela ordem em que as checkboxes foram marcadas — assim a folha
+      impressa pode ser conferida linha a linha contra o ecrã
+    - feat: Escape fecha o ecrã da câmara, tal como o "x" no canto
+    - a11y: os cartões de upload passam a ser acionáveis por teclado
+      (Enter/Espaço), anunciados como botões e com indicador de foco
+    - chore: aviso visível quando o JavaScript está desativado, em vez de
+      uma página em branco sem explicação
+  v1.26.0
     - feat: emissão de etiquetas em lote a partir do índice de
       supermercado — nova coluna com checkbox (🏷) antes do código de cada
       artigo nas fichas de supermercado. Marcando um ou mais artigos
@@ -297,8 +365,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.26.0</title>
-<meta name="description" content="Consulta de Artigos v1.26.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.27.0</title>
+<meta name="description" content="Consulta de Artigos v1.27.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -308,7 +376,12 @@
 <meta name="apple-mobile-web-app-title" content="Artigos">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
-<script src="https://unpkg.com/@zxing/browser@latest"></script>
+<!-- Versão fixada (era "@latest"): "latest" muda sozinho, e uma versão nova
+     do ZXing podia partir o scan sem nada ter mudado neste ficheiro. 0.2.1
+     é exatamente o que o "@latest" resolvia. O caminho completo evita ainda
+     o redirecionamento do unpkg, que impedia o Service Worker de guardar
+     esta biblioteca em cache para uso offline. -->
+<script src="https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
 <script>
 /* qrcode-generator (MIT, Kazuhiko Arase) — embutido para QR offline na etiqueta */
 /* qrcode-generator v1.x — MIT, Kazuhiko Arase — embutido para funcionamento offline */
@@ -2652,7 +2725,8 @@ var qrcode = function() {
   .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1.5rem; }
   .upload-card { background: var(--surface); border: 1.5px dashed var(--border2); border-radius: var(--radius); padding: 1.5rem; text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; }
   .upload-card:hover { border-color: var(--blue-txt); background: var(--blue-bg); }
-  .upload-card.loaded { border-style: solid; border-color: #1a6632; background: var(--green-bg); cursor: default; }
+  .upload-card.loaded { border-style: solid; border-color: #1a6632; background: var(--green-bg); }
+  .upload-card:focus-visible { outline: 2px solid var(--blue-txt); outline-offset: 2px; }
   .upload-card svg { width: 32px; height: 32px; color: var(--text3); margin-bottom: 8px; }
   .upload-card.loaded svg { color: var(--green-txt); }
   .upload-card .uc-title { font-size: 13px; font-weight: 600; color: var(--text); }
@@ -2680,9 +2754,14 @@ var qrcode = function() {
   /* SEARCH */
   .search-wrap { position: relative; margin-bottom: 1.5rem; }
   .search-wrap svg.icon-search { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--text3); pointer-events: none; }
-  #search-input-artigo, #search-input-super { width: 100%; padding: 10px 40px 10px 40px; font-size: 15px; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
-  #search-input-artigo:focus, #search-input-super:focus { border-color: var(--blue-txt); box-shadow: 0 0 0 3px rgba(26,79,160,0.1); }
-  #search-input-artigo:disabled, #search-input-super:disabled { background: var(--surface2); color: var(--text3); cursor: not-allowed; }
+  /* Uma classe partilhada pelas três caixas (Artigos / Supermercados /
+     Etiqueta), em vez de uma lista de #id. Com a lista de ids, a caixa do
+     modo Etiqueta acrescentada na v1.25.0 ficou de fora de todas estas
+     regras e aparecia com o aspeto por omissão do browser — estreita, sem
+     cantos redondos e sem espaço para o ícone da lupa. */
+  .search-input { width: 100%; padding: 10px 40px 10px 40px; font-size: 15px; border: 1px solid var(--border2); border-radius: var(--radius); background: var(--surface); color: var(--text); outline: none; transition: border-color 0.15s, box-shadow 0.15s; font-family: inherit; }
+  .search-input:focus { border-color: var(--blue-txt); box-shadow: 0 0 0 3px rgba(26,79,160,0.1); }
+  .search-input:disabled { background: var(--surface2); color: var(--text3); cursor: not-allowed; }
   #btn-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; display: none; border-radius: 99px; }
   #btn-clear:hover { color: var(--text); background: var(--surface2); }
 
@@ -2858,24 +2937,39 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.26.0</span>
+  <span class="version">v1.27.0</span>
 </header>
 
 <div class="container">
+
+  <!-- A app é inteiramente JavaScript (lê os Excel no próprio browser).
+       Sem JS não há nada para mostrar — mais vale dizê-lo do que deixar
+       uma página em branco sem explicação. -->
+  <noscript>
+    <div class="ocr-msg" style="display:block">
+      Esta aplicação precisa de JavaScript para ler os ficheiros Excel no
+      próprio dispositivo. Ativa o JavaScript no browser e recarrega a página.
+    </div>
+  </noscript>
 
   <!-- UPLOAD -->
   <div id="upload-section">
     <div class="auto-load-status" id="auto-load-status">A carregar dados guardados…</div>
     <div class="upload-grid">
-      <div class="upload-card" id="z-super" onclick="document.getElementById('f-super').click()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
+      <!-- role/tabindex/onkeydown: os cartões são acionáveis também por
+           teclado (Enter ou Espaço), tal como um botão. O <input file>
+           real fica escondido dentro do cartão e é aberto pelo clique. -->
+      <div class="upload-card" id="z-super" role="button" tabindex="0"
+           onclick="document.getElementById('f-super').click()" onkeydown="ativarPorTeclado(event, this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/></svg>
         <div class="uc-title">Supermercados</div>
         <div class="uc-sub">Supermercados / Kanbans</div>
         <div class="uc-count" id="count-super" style="display:none"></div>
         <input type="file" id="f-super" accept=".xlsx" onchange="loadFile(this,'super')">
       </div>
-      <div class="upload-card" id="z-arm" onclick="document.getElementById('f-arm').click()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <div class="upload-card" id="z-arm" role="button" tabindex="0"
+           onclick="document.getElementById('f-arm').click()" onkeydown="ativarPorTeclado(event, this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
         <div class="uc-title">Artigos</div>
         <div class="uc-sub">Armazém / Posições</div>
         <div class="uc-count" id="count-arm" style="display:none"></div>
@@ -2905,9 +2999,9 @@ var qrcode = function() {
   <!-- SEARCH -->
   <div class="search-wrap">
     <svg class="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    <input type="text" id="search-input-artigo" placeholder="Pesquisar por código ou descrição do artigo…" oninput="onSearchInput()" disabled>
-    <input type="text" id="search-input-super" placeholder="Pesquisar por supermercado ou serviço (código ou descrição)…" oninput="onSearchInput()" disabled style="display:none">
-    <input type="text" id="search-input-etiqueta" placeholder="Pesquisar supermercado para gerar etiqueta…" oninput="onSearchInput()" disabled style="display:none">
+    <input type="text" class="search-input" id="search-input-artigo" placeholder="Pesquisar por código ou descrição do artigo…" oninput="onSearchInput()" disabled>
+    <input type="text" class="search-input" id="search-input-super" placeholder="Pesquisar por supermercado ou serviço (código ou descrição)…" oninput="onSearchInput()" disabled style="display:none">
+    <input type="text" class="search-input" id="search-input-etiqueta" placeholder="Pesquisar supermercado para gerar etiqueta…" oninput="onSearchInput()" disabled style="display:none">
     <button id="btn-scan" onclick="abrirScanAoVivo()" title="Ler código pela câmara" disabled>
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
     </button>
@@ -2962,16 +3056,32 @@ let superLoaded = false, armLoaded = false;
 // ── File loading ───────────────────────────────────────
 function loadFile(input, tipo) {
   const file = input.files[0];
+  // Repõe o valor do <input type=file> em qualquer saída desta função.
+  // Sem isto, escolher OUTRA VEZ o MESMO ficheiro (caso normal depois de
+  // "Trocar ficheiros", quando se voltou a exportar o Excel com o mesmo
+  // nome) não dispara o evento "change" — o browser considera que o valor
+  // não mudou — e a app parecia simplesmente ignorar o clique.
+  input.value = '';
   if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
     const buffer = e.target.result;
-    processFileBuffer(buffer, tipo, file.name);
+    // Só se guarda no dispositivo se a leitura correu bem: guardar um
+    // ficheiro que a app não consegue interpretar faria com que TODOS os
+    // arranques seguintes falhassem a retomar, sem forma óbvia de sair
+    // disso a não ser "Esquecer ficheiros".
+    if (!processFileBuffer(buffer, tipo, file.name)) return;
     // Guarda os bytes originais no dispositivo (IndexedDB) para a próxima
     // vez que a app abrir não ser preciso voltar a pedir este ficheiro —
     // ver secção "Persistência local (IndexedDB)". Isto substitui
     // automaticamente o que estivesse guardado antes para este tipo.
     guardarFicheiroDB(tipo, buffer, file.name);
+  };
+  // Sem este onerror, uma falha de leitura (ficheiro removido da pen a
+  // meio, permissões, ficheiro corrompido) não dava sinal nenhum: a app
+  // ficava exatamente na mesma, como se nada tivesse sido clicado.
+  reader.onerror = () => {
+    alert('Não foi possível ler o ficheiro "' + file.name + '". Verifica se ainda está acessível e tenta outra vez.');
   };
   reader.readAsArrayBuffer(file);
 }
@@ -2981,19 +3091,68 @@ function loadFile(input, tipo) {
 // tanto no upload manual (acima) como no carregamento automático a partir
 // do IndexedDB (ver tentarCarregarGuardado) — as duas vias têm de tratar
 // os bytes exatamente da mesma forma.
+// Devolve true se o ficheiro foi lido e processado com sucesso, false se
+// não — quem chama usa isso para decidir se vale a pena guardá-lo no
+// dispositivo (ver loadFile).
 function processFileBuffer(buffer, tipo, fname) {
-  const wb  = XLSX.read(buffer, { type: 'array' });
-  const ws  = wb.Sheets[wb.SheetNames[0]];
-  const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  let raw;
+  try {
+    const wb  = XLSX.read(buffer, { type: 'array' });
+    const ws  = wb.Sheets[wb.SheetNames[0]];
+    raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  } catch (err) {
+    // Ficheiro que não é um .xlsx válido (ex: .xls antigo, .csv renomeado,
+    // ficheiro truncado). Sem este try, a exceção subia pelo onload do
+    // FileReader e a app ficava parada sem explicação nenhuma.
+    console.warn('Falha ao interpretar o ficheiro Excel:', err);
+    alert('Não foi possível abrir "' + fname + '" como ficheiro Excel (.xlsx). Verifica o formato do ficheiro.');
+    return false;
+  }
   let hRow  = -1;
   for (let i = 0; i < Math.min(10, raw.length); i++) {
     if (raw[i].filter(c => String(c).trim().length > 2).length > 3) { hRow = i; break; }
   }
-  if (hRow === -1) { alert('Não foi possível ler o ficheiro. Verifique o formato.'); return; }
+  if (hRow === -1) { alert('Não foi possível ler o ficheiro. Verifique o formato.'); return false; }
   const headers = raw[hRow].map(c => String(c).trim());
   const rows    = raw.slice(hRow + 1).filter(r => r.some(c => String(c).trim()));
+
+  // Confirma que este ficheiro é mesmo o do tipo em que foi largado, ANTES
+  // de substituir os dados já carregados. Sem esta validação, trocar os
+  // dois ficheiros (o Consumo no cartão "Supermercados", por exemplo) era
+  // aceite em silêncio: as colunas procuradas não existiam, saía tudo
+  // vazio, e a app dizia apenas "0 artigos" sem dizer porquê.
+  const erroTipo = validarCabecalho(headers, tipo);
+  if (erroTipo) { alert(erroTipo); return false; }
+
   if (tipo === 'super') processSuperFile(headers, rows, fname);
   else                  processArmFile(headers, rows, fname);
+  return true;
+}
+
+// Colunas mínimas que cada ficheiro tem obrigatoriamente de ter para a app
+// conseguir fazer alguma coisa com ele. Escolhidas por serem específicas
+// de cada ficheiro (não existem no outro), para servirem também de
+// deteção de "ficheiro trocado".
+const COLUNAS_OBRIGATORIAS = {
+  super: [['Código Artigo', 'Codigo Artigo'], ['Supermercado']],
+  arm:   [['Código Artigo', 'Codigo Artigo'], ['Descrição Armazém', 'Descricao Armazem', 'Armazém']],
+};
+const NOME_TIPO = { super: 'Supermercados', arm: 'Artigos' };
+
+// Devolve '' se o cabeçalho serve para o tipo pedido, ou a mensagem de
+// erro a mostrar à pessoa se não servir.
+function validarCabecalho(headers, tipo) {
+  const emFalta = COLUNAS_OBRIGATORIAS[tipo].filter(termos => col(headers, termos) === -1);
+  if (!emFalta.length) return '';
+  const outro = tipo === 'super' ? 'arm' : 'super';
+  const pareceOOutro = COLUNAS_OBRIGATORIAS[outro].every(termos => col(headers, termos) !== -1);
+  const faltam = emFalta.map(termos => '"' + termos[0] + '"').join(', ');
+  if (pareceOOutro) {
+    return 'Este ficheiro parece ser o de "' + NOME_TIPO[outro] + '", não o de "' + NOME_TIPO[tipo] + '"'
+      + ' (não tem as colunas ' + faltam + '). Carrega-o no outro cartão.';
+  }
+  return 'O ficheiro não tem as colunas necessárias para "' + NOME_TIPO[tipo] + '": ' + faltam + '.'
+    + ' Confirma que é o export correto e que o cabeçalho não foi alterado.';
 }
 
 // Prefere correspondência EXATA do cabeçalho; só recorre a substring se não
@@ -3071,6 +3230,7 @@ function processSuperFile(headers, rows, fname) {
   Object.values(superMap).forEach(a => { a.caixas = aggregateCaixas(a.caixas); });
 
   superLoaded = true;
+  invalidarIndicePesquisa();
   markLoaded('z-super', 'count-super', fname, Object.keys(superMap).length + ' artigos', 'super');
   checkReady();
 }
@@ -3188,6 +3348,7 @@ function processArmFile(headers, rows, fname) {
   });
 
   armLoaded = true;
+  invalidarIndicePesquisa();
   markLoaded('z-arm', 'count-arm', fname, Object.keys(armMap).length + ' artigos', 'arm');
   checkReady();
 }
@@ -3284,6 +3445,23 @@ async function lerFicheiroDB(tipo) {
   }
 }
 
+// Apaga só o registo de um tipo ('super' ou 'arm') — usado quando um
+// ficheiro guardado se revela ilegível ao retomar (ver tentarCarregarGuardado).
+async function apagarFicheiroDB(tipo) {
+  try {
+    const db = await abrirFicheirosDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      tx.objectStore(DB_STORE).delete(tipo);
+      tx.oncomplete = resolve;
+      tx.onerror    = () => reject(tx.error);
+    });
+    db.close();
+  } catch (err) {
+    console.warn('Não foi possível apagar o ficheiro guardado:', err);
+  }
+}
+
 // Apaga tudo o que estiver guardado — usado pelo link "Esquecer ficheiros".
 async function apagarFicheirosDB() {
   try {
@@ -3313,8 +3491,18 @@ async function tentarCarregarGuardado() {
     if (!regSuper && !regArm) return;
 
     statusEl.style.display = 'block';
-    if (regSuper) processFileBuffer(regSuper.arrayBuffer, 'super', regSuper.fname);
-    if (regArm)   processFileBuffer(regArm.arrayBuffer, 'arm', regArm.fname);
+    // Deixa o browser pintar a mensagem "A carregar dados guardados…"
+    // antes de arrancar com a leitura, que é síncrona e pode bloquear
+    // meio segundo com ficheiros grandes. Sem esta pausa, a mensagem era
+    // posta e tirada dentro do mesmo fotograma — nunca chegava a aparecer,
+    // e o ecrã parecia congelado sem explicação.
+    await new Promise(requestAnimationFrame);
+    // Se um ficheiro guardado já não for legível (ex: foi guardado por uma
+    // versão anterior da app, que ainda não validava o cabeçalho), apaga-se
+    // o registo — senão o mesmo aviso voltava a aparecer em todos os
+    // arranques seguintes, sem forma óbvia de o calar.
+    if (regSuper && !processFileBuffer(regSuper.arrayBuffer, 'super', regSuper.fname)) apagarFicheiroDB('super');
+    if (regArm   && !processFileBuffer(regArm.arrayBuffer, 'arm', regArm.fname))       apagarFicheiroDB('arm');
   } catch (err) {
     console.warn('Não foi possível retomar os ficheiros guardados anteriormente:', err);
   } finally {
@@ -3341,7 +3529,11 @@ let uploadLabels = { super: '', arm: '' };
 function markLoaded(zoneId, countId, fname, info, tipo) {
   const zone = document.getElementById(zoneId);
   zone.classList.add('loaded');
-  zone.onclick = null;
+  // O cartão continua clicável depois de carregado. Antes ficava com
+  // onclick = null, o que tornava o "Trocar ficheiros" inútil: a zona de
+  // upload reabria, mas nenhum dos dois cartões respondia ao clique, por
+  // isso não havia forma nenhuma de substituir um ficheiro sem antes
+  // "Esquecer ficheiros" e voltar a carregar os dois.
   const countEl = document.getElementById(countId);
   const label = fname.split('/').pop() + ' — ' + info;
   countEl.textContent = '✓ ' + label;
@@ -3405,18 +3597,30 @@ function updateScanUI() {
   btn.disabled = !(superLoaded && armLoaded);
 }
 
-function setSearchMode(mode) {
-  if (mode === searchMode) return;
+// Os três modos são simétricos: cada um tem um botão e uma caixa de texto
+// própria. Esta função é a ÚNICA que mexe nessa parte da UI — antes a
+// mesma lógica estava repetida em setSearchMode e nos dois saltos entre
+// modos (irParaSupermercadoNoIndice / irParaArtigoNoIndice), e essas duas
+// cópias só conheciam os modos "artigo" e "super": saltar a partir do
+// modo Etiqueta deixava o botão "Etiqueta" marcado como ativo e a sua
+// caixa de texto visível ao lado da caixa do modo de destino.
+function aplicarModoUI(mode) {
   searchMode = mode;
-
-  document.getElementById('mode-btn-artigo').classList.toggle('active', mode === 'artigo');
-  document.getElementById('mode-btn-super').classList.toggle('active', mode === 'super');
-  document.getElementById('mode-btn-etiqueta').classList.toggle('active', mode === 'etiqueta');
-  document.getElementById('search-input-artigo').style.display   = mode === 'artigo'   ? 'block' : 'none';
-  document.getElementById('search-input-super').style.display    = mode === 'super'    ? 'block' : 'none';
-  document.getElementById('search-input-etiqueta').style.display = mode === 'etiqueta' ? 'block' : 'none';
+  ['artigo', 'super', 'etiqueta'].forEach(m => {
+    document.getElementById('mode-btn-' + m).classList.toggle('active', m === mode);
+    document.getElementById('search-input-' + m).style.display = m === mode ? 'block' : 'none';
+  });
   hideOcrMsg();
   updateScanUI();
+  // O botão de limpar acompanha a caixa que está à vista: cada modo tem o
+  // seu próprio texto, por isso o "x" tem de refletir o texto DESTE modo.
+  const inp = document.getElementById(activeSearchInputId());
+  document.getElementById('btn-clear').style.display = inp.value.trim() ? 'inline-flex' : 'none';
+}
+
+function setSearchMode(mode) {
+  if (mode === searchMode) return;
+  aplicarModoUI(mode);
 
   // Cada modo mantém o seu próprio texto e (no caso de "Supermercados /
   // Serviços") a sua seleção — não se limpa nada ao trocar de modo. Voltar
@@ -3425,6 +3629,16 @@ function setSearchMode(mode) {
   const inp = document.getElementById(activeSearchInputId());
   if (!inp.disabled) inp.focus();
   doSearch();
+}
+
+// Enter/Espaço num elemento com role="button" (os cartões de upload) faz
+// o mesmo que um clique — é o que se espera de qualquer botão, e é o que
+// os leitores de ecrã anunciam. preventDefault no Espaço evita que a
+// página faça scroll ao mesmo tempo.
+function ativarPorTeclado(ev, el) {
+  if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') return;
+  ev.preventDefault();
+  el.click();
 }
 
 // Reabre a zona de upload para permitir trocar um ou os dois ficheiros.
@@ -3446,32 +3660,78 @@ function getNome(cod) {
   return (superMap[cod] && superMap[cod].nome) || (armMap[cod] && armMap[cod].descArtigo) || '';
 }
 
+// ── Índice de pesquisa (pré-calculado) ──────────────────
+// normaliza() faz um normalize('NFD') + regex por cada texto comparado.
+// Feito ao vivo, isso significava repetir esse trabalho para TODOS os
+// artigos (e, no modo Supermercados, para todos os supermercados e
+// serviços de cada artigo) a CADA tecla premida — dezenas de milhares de
+// operações por letra em ficheiros reais, o que dava a sensação de a app
+// "engasgar" a escrever no telemóvel.
+//
+// Aqui calcula-se cada texto normalizado UMA vez e reutiliza-se em todas
+// as pesquisas seguintes. O índice é construído à primeira pesquisa depois
+// de carregar dados (não no carregamento em si, para não atrasar o arranque)
+// e deitado fora sempre que um ficheiro é (re)carregado.
+let indicePesquisa = null;
+
+function invalidarIndicePesquisa() {
+  indicePesquisa = null;
+}
+
+function garantirIndicePesquisa() {
+  if (indicePesquisa) return indicePesquisa;
+  const cods = [...new Set([...Object.keys(superMap), ...Object.keys(armMap)])];
+  const artigos = new Map();
+  for (const cod of cods) {
+    artigos.set(cod, { codNorm: normaliza(cod), nomeNorm: normaliza(getNome(cod)) });
+  }
+  // Cada supermercado/serviço aparece repetido em muitos artigos, mas o
+  // texto normalizado é o mesmo — guarda-se por nome+código, uma só vez.
+  const locais = new Map();
+  const normalizarLista = lista => {
+    for (const sv of lista || []) {
+      const chave = sv.cod + '|' + sv.nome;
+      if (!locais.has(chave)) locais.set(chave, { nomeNorm: normaliza(sv.nome), codNorm: normaliza(sv.cod) });
+    }
+  };
+  for (const cod of Object.keys(superMap)) {
+    normalizarLista(superMap[cod].supermercados);
+    normalizarLista(superMap[cod].servicos);
+  }
+  indicePesquisa = { cods, artigos, locais };
+  return indicePesquisa;
+}
+
+// Um supermercado/serviço bate com a pesquisa se o termo aparecer no nome
+// ou no código — usando os textos já normalizados do índice.
+function localBate(sv, q) {
+  const norm = garantirIndicePesquisa().locais.get(sv.cod + '|' + sv.nome);
+  if (!norm) return false;
+  return (norm.nomeNorm && norm.nomeNorm.includes(q)) || (norm.codNorm && norm.codNorm.includes(q));
+}
+
 // Devolve os supermercados associados ao artigo que batem com o termo de
 // pesquisa (código ou descrição). Ao contrário de um simples true/false,
 // devolve os próprios supermercados porque o modo "Supermercados / Serviços"
 // precisa de saber QUAL supermercado bateu, para construir o índice.
 function supersQueBatem(cod, q) {
   const supers = (superMap[cod] && superMap[cod].supermercados) || [];
-  return supers.filter(sv =>
-    (sv.nome && normaliza(sv.nome).includes(q)) ||
-    (sv.cod  && normaliza(sv.cod).includes(q))
-  );
+  return supers.filter(sv => localBate(sv, q));
 }
 
 // Devolve os serviços associados ao artigo que batem com o termo de
 // pesquisa (código ou descrição). Mesma lógica de supersQueBatem.
 function servicosQueBatem(cod, q) {
   const servicos = (superMap[cod] && superMap[cod].servicos) || [];
-  return servicos.filter(sv =>
-    (sv.nome && normaliza(sv.nome).includes(q)) ||
-    (sv.cod  && normaliza(sv.cod).includes(q))
-  );
+  return servicos.filter(sv => localBate(sv, q));
 }
 
 // Modo "Artigos": encontra só por código ou descrição do artigo — nunca
 // por supermercado ou serviço.
 function matchArtigo(cod, q) {
-  return normaliza(cod).includes(q) || normaliza(getNome(cod)).includes(q);
+  const norm = garantirIndicePesquisa().artigos.get(cod);
+  if (!norm) return false;
+  return norm.codNorm.includes(q) || norm.nomeNorm.includes(q);
 }
 
 // Constrói o índice de supermercados que batem com a pesquisa. Cada
@@ -3631,8 +3891,7 @@ function doSearch() {
   const container = document.getElementById('cards-container');
 
   if (searchMode === 'artigo') {
-    const allCods = [...new Set([...Object.keys(superMap), ...Object.keys(armMap)])];
-    const found   = allCods.filter(cod => matchArtigo(cod, q));
+    const found = garantirIndicePesquisa().cods.filter(cod => matchArtigo(cod, q));
 
     document.getElementById('results-header').textContent = found.length
       ? found.length + ' resultado(s) encontrado(s)' + (found.length > 30 ? ' — mostrando os primeiros 30' : '')
@@ -3880,8 +4139,16 @@ function renderEtiquetaLote(entry, cods) {
 // 23x80mm como antes.
 function imprimirEtiquetasLote() {
   if (!etqLoteEntryAtual || !etqLoteSel.size) return;
+  // Sai pela MESMA ordem em que os artigos aparecem na tabela (a ordenação
+  // escolhida nos cabeçalhos), não pela ordem em que as checkboxes foram
+  // marcadas — assim a folha impressa pode ser conferida linha a linha
+  // contra o ecrã.
+  const cods = etqLoteEntryAtual.artigos
+    .filter(a => etqLoteSel.has(a.cod))
+    .sort(compareIndexArtigos)
+    .map(a => a.cod);
   const tmp = document.createElement('div');
-  tmp.innerHTML = renderEtiquetaLote(etqLoteEntryAtual, [...etqLoteSel]);
+  tmp.innerHTML = renderEtiquetaLote(etqLoteEntryAtual, cods);
   const area = tmp.firstElementChild;
   document.body.appendChild(area);
   document.body.classList.add('print-lote');
@@ -3919,17 +4186,8 @@ function scrollParaResultados() {
 // o mesmo fluxo de setSearchMode + doSearch + selectedIndexKey já usados
 // pela pesquisa normal de "Supermercados / Serviços".
 function irParaSupermercadoNoIndice(cod, nome) {
-  searchMode = 'super';
-  document.getElementById('mode-btn-artigo').classList.remove('active');
-  document.getElementById('mode-btn-super').classList.add('active');
-  document.getElementById('search-input-artigo').style.display = 'none';
-  document.getElementById('search-input-super').style.display = 'block';
-  hideOcrMsg();
-  updateScanUI();
-
-  const inp = document.getElementById('search-input-super');
-  inp.value = nome;
-  document.getElementById('btn-clear').style.display = 'inline-flex';
+  document.getElementById('search-input-super').value = nome;
+  aplicarModoUI('super');
 
   selectedIndexKey = 'supermercado|' + cod + '|' + nome;
   doSearch();
@@ -3942,17 +4200,8 @@ function irParaSupermercadoNoIndice(cod, nome) {
 // preenche a pesquisa com o código desse artigo e já mostra a sua ficha —
 // mesma lógica de irParaSupermercadoNoIndice, mas no sentido inverso.
 function irParaArtigoNoIndice(cod) {
-  searchMode = 'artigo';
-  document.getElementById('mode-btn-artigo').classList.add('active');
-  document.getElementById('mode-btn-super').classList.remove('active');
-  document.getElementById('search-input-artigo').style.display = 'block';
-  document.getElementById('search-input-super').style.display = 'none';
-  hideOcrMsg();
-  updateScanUI();
-
-  const inp = document.getElementById('search-input-artigo');
-  inp.value = cod;
-  document.getElementById('btn-clear').style.display = 'inline-flex';
+  document.getElementById('search-input-artigo').value = cod;
+  aplicarModoUI('artigo');
 
   doSearch();
 
@@ -3969,11 +4218,18 @@ function emptyStateHtml(qRaw, tipoLabel) {
 
 function clearSearch() {
   clearTimeout(searchTimer);
+  // Limpa a mesma coisa que onSearchInput limpa a cada tecla: a seleção do
+  // índice E a do modo Etiqueta. Sem limpar a da Etiqueta, o supermercado
+  // e o artigo escolhidos sobreviviam ao "x" e voltavam a aparecer
+  // escolhidos assim que se escrevesse outra pesquisa qualquer.
   selectedIndexKey = null;
-  document.getElementById(activeSearchInputId()).value = '';
+  etqSuperKey = null;
+  etqArtigoCod = null;
+  const inp = document.getElementById(activeSearchInputId());
+  inp.value = '';
   document.getElementById('btn-clear').style.display = 'none';
   document.getElementById('results').style.display = 'none';
-  document.getElementById(activeSearchInputId()).focus();
+  inp.focus();
 }
 
 // ── Scan ao vivo (OCR) ───────────────────────────────────
@@ -4154,8 +4410,24 @@ function fecharScanAoVivo() {
     scanWorker = null;
   }
   scanBarcodeReader = null;
+  // Larga o vídeo. Parar as tracks apaga a imagem em movimento mas deixa o
+  // ÚLTIMO fotograma congelado no elemento — que reaparecia por um instante
+  // na abertura seguinte da câmara, dando a ideia de que já estava a ler
+  // (uma imagem velha) antes de a câmara real arrancar.
+  const video = document.getElementById('scan-video');
+  video.pause();
+  video.srcObject = null;
   document.getElementById('scan-overlay').classList.remove('open');
 }
+
+// Escape fecha a câmara, tal como o "x" no canto. É o gesto esperado em
+// qualquer overlay a ecrã inteiro, e evita ficar preso com a câmara ligada
+// em teclado/desktop.
+window.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape') return;
+  if (!document.getElementById('scan-overlay').classList.contains('open')) return;
+  fecharScanAoVivo();
+});
 
 // "Continuar a tentar": descarta o candidato mostrado e volta ao estado de
 // leitura — o ciclo em si nunca parou, só estava à espera de decisão.
@@ -4261,8 +4533,13 @@ function ordenarSupermercadosAlfabeticamente(lista) {
 }
 
 // ── Render ─────────────────────────────────────────────
+// Escapa texto vindo dos ficheiros antes de o injetar via innerHTML.
+// A plica (') está aqui de propósito, apesar de todos os atributos deste
+// ficheiro usarem aspas duplas: é uma linha de defesa barata contra o dia
+// em que alguém escrever um atributo com plicas e a descrição de um artigo
+// contiver uma.
 function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // Decide, para uma dimensão (Local/grupo ou Área), se se mostra um badge
