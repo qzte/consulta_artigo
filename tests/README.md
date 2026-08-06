@@ -49,7 +49,11 @@ correcção nunca lhe chega.
 ## O que **não** está coberto
 
 - Tudo o que precisa de browser: câmara, IndexedDB, service worker, impressão
-  e o render em si. Não há aqui browser nenhum.
+  e o render em si. Não há aqui browser nenhum. Inclui o painel do **modo de
+  diagnóstico** do scan: a lógica que decide o que ele mostra
+  (`resumirLinhasOcr`, `explicarEscolhaOcr`) está testada e é verificada
+  contra a decisão real, mas o painel em si é código de DOM e foi conferido
+  à mão num browser.
 - A leitura de OCR de ponta a ponta com o Tesseract. Os testes cobrem a
   preparação da imagem — que era onde estava a avaria — e não o motor.
 - A leitura de códigos de barras (ZXing).
