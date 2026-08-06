@@ -2,11 +2,26 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.38.0
+  Consulta de Artigos — v1.39.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.38.0 (atual)
+  v1.39.0 (atual)
+    - confirmado em etiqueta real: a leitura por OCR da v1.38.0 funciona
+    - fix: o código de barras passa a exigir a mesma forma que o OCR — uma
+      sequência de exactamente 10 dígitos, que é o formato do código de
+      artigo (confirmado sobre as etiquetas em uso). Antes aceitava
+      qualquer número com 4 dígitos ou mais, e foi assim que o scan chegou
+      a apresentar "08189271" apontado a uma etiqueta que não tem código
+      de barras nenhum. Um EAN de produto embalado (13 dígitos) também
+      deixa de passar — nem ele corresponderia a artigo nenhum na pesquisa
+    - a validação é uma só função para as duas vias de leitura, para não
+      voltarem a divergir
+    - remove: a digitosValidos deixou de ter quem a chamasse e foi apagada.
+      Foi uma função esquecida em código morto (o cálculo do limiar de
+      Otsu, entre a v1.28.0 e a v1.35.0) que deu origem a toda esta série
+      de correcções; não vale a pena deixar outra a criar raízes
+  v1.38.0
     - fix: o OCR lia o código certo e deitava-o fora. O modo de diagnóstico
       da v1.37.0 mostrou-o numa etiqueta real: o motor devolvia as três
       linhas correctamente, incluindo "1260500100", mas a regra de escolha
@@ -664,8 +679,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.38.0</title>
-<meta name="description" content="Consulta de Artigos v1.38.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.39.0</title>
+<meta name="description" content="Consulta de Artigos v1.39.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3298,7 +3313,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.38.0</span>
+  <span class="version">v1.39.0</span>
 </header>
 
 <div class="container">
@@ -4844,12 +4859,19 @@ function extrairDigitos(textoOcr) {
   return corrigido.replace(/\D/g, '');
 }
 
-// Só aceita um candidato com dígitos suficientes (por omissão, 4), para
-// não mostrar "ruído" de 1 número solto lido por engano. Usado tal e qual
-// para o código de BARRAS, em que o ZXing devolve um número só.
-function digitosValidos(textoOcr, minDigitos = 4) {
-  const digitos = extrairDigitos(textoOcr);
-  return digitos.length >= minDigitos ? digitos : '';
+// Um código de artigo é SEMPRE uma sequência de exactamente 10 dígitos —
+const CODIGO_DIGITOS = 10;
+
+// confirmado sobre as etiquetas em uso. Não há dígito de controlo nem nada
+// que se lhe pareça, por isso o comprimento é o que separa uma leitura boa
+// de uma invenção.
+//
+// Vale para as DUAS vias de leitura, de propósito. A do OCR já a usava; a
+// do código de barras aceitava qualquer número com 4 dígitos ou mais, e
+// foi assim que o scan chegou a apresentar "08189271" (8 dígitos) apontado
+// a uma etiqueta que não tem código de barras nenhum.
+function codigoDeArtigoValido(digitos) {
+  return String(digitos || '').length === CODIGO_DIGITOS ? String(digitos) : '';
 }
 
 // Escolhe o código de artigo de entre as linhas que o OCR leu na faixa.
@@ -4883,7 +4905,6 @@ function digitosValidos(textoOcr, minDigitos = 4) {
 // Em qualquer dos casos só se aceita um candidato de 10 dígitos, e só se
 // ele for único. Havendo dois, não se escolhe nada e tenta-se no ciclo
 // seguinte — mais vale não mostrar nada do que mostrar o número errado.
-const CODIGO_DIGITOS = 10;
 const CAMPO_CODIGO = /pr[o0]du/i; // "Produto", tolerando o o→0 do OCR
 
 // Candidatos numa linha. Duas leituras de propósito, porque o OCR tanto
@@ -4947,7 +4968,7 @@ function resumirLinhasOcr(data) {
 function explicarEscolhaOcr(data) {
   const comCaixa = ((data && data.lines) || []).filter(l => l && l.bbox);
   if (!comCaixa.length) {
-    const soTexto = digitosValidos(data && data.text);
+    const soTexto = codigoDeArtigoValido(extrairDigitos(data && data.text));
     return {
       escolhido: soTexto,
       motivo: soTexto
@@ -5407,7 +5428,10 @@ function prepararFotogramaParaCodigoBarras(video, canvas) {
 async function tentarLerCodigoBarras(fotograma) {
   try {
     const resultado = await scanBarcodeReader.decodeFromCanvas(fotograma);
-    return digitosValidos(resultado.getText());
+    // Só passa se tiver a forma de um código de artigo. Um EAN de produto
+    // embalado (13 dígitos) ou um falso positivo do leitor não chegam aqui
+    // — e nem um nem outro corresponderiam a artigo nenhum na pesquisa.
+    return codigoDeArtigoValido(extrairDigitos(resultado.getText()));
   } catch (err) {
     return ''; // nenhum código de barras encontrado neste fotograma
   }
@@ -5533,14 +5557,15 @@ function guardarFotogramaScan(qual) {
 // (ver escolherCodigoDasLinhas).
 //
 // A reserva pelo texto corrido existe para o caso de uma versão do
-// Tesseract não devolver as linhas nesta forma: aí perde-se a escolha por
-// altura e volta-se ao comportamento antigo, que acerta nas etiquetas em
-// que a faixa apanha só o número. Vale mais um OCR pior do que um OCR que
-// deixa de devolver seja o que for por a resposta ter mudado de formato.
+// Tesseract não devolver as linhas nesta forma: aí perde-se a escolha pelo
+// campo, mas ainda se lê a etiqueta em que a faixa apanha só o número.
+// Vale mais um OCR pior do que um OCR que deixa de devolver seja o que for
+// por a resposta ter mudado de formato. A exigência dos 10 dígitos
+// mantém-se também aqui.
 function lerCodigoDaResposta(data) {
   const linhas = data && data.lines;
   if (linhas && linhas.length) return escolherCodigoDasLinhas(linhas);
-  return digitosValidos(data && data.text);
+  return codigoDeArtigoValido(extrairDigitos(data && data.text));
 }
 
 // Ciclo do OCR (reserva, para etiquetas em que o código de barras está
