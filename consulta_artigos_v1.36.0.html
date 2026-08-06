@@ -2,11 +2,39 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.35.0
+  Consulta de Artigos — v1.36.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.35.0 (atual)
+  v1.36.0 (atual)
+    - fix: o OCR continuava a não ler etiquetas reais depois da v1.35.0.
+      Testado com a câmara numa etiqueta a sério: código de barras lia,
+      OCR não. A causa era outra, e a v1.35.0 não lhe tocou.
+      O motor estava configurado com PSM.SINGLE_LINE, que promete à
+      biblioteca que a imagem tem UMA linha de texto e mais nada. A faixa
+      recortada quase nunca é assim: apanha o fim da descrição em cima e a
+      posição em baixo. Com uma linha vizinha o motor devolvia dígitos
+      trocados; com duas, não devolvia rigorosamente nada — o sintoma
+      relatado. Passa a usar-se PSM.SPARSE_TEXT, que procura o texto onde
+      ele estiver e devolve as linhas separadas
+    - fix: mesmo quando o número era lido, os dígitos das linhas vizinhas
+      eram colados a ele. "COMPRESSA ... 10X10" + "4827516" + "POS: A-12"
+      saía como 10104827516012, que não corresponde a artigo nenhum. Cada
+      linha passa a ser avaliada por si
+    - fix: de entre as linhas, passa a ganhar a de LETRA MAIOR e não a que
+      tem mais dígitos. O código do artigo é o texto grande da etiqueta;
+      descrição, lote e posição são miudinhos. Escolher pelo comprimento
+      parecia o mais natural mas erra em dois casos vulgares: um código de
+      4 dígitos empata com o "10X10" da descrição, e um número de lote
+      comprido ganha sempre ao código. Se a linha maior não for claramente
+      maior que a seguinte (35%), não se escolhe nada e tenta-se no ciclo
+      seguinte — mais vale não mostrar nada do que mostrar o número errado
+    - nota: medido com o Tesseract sobre etiquetas de três linhas em quatro
+      condições de luz e foco. Antes: 12 acertos em 28, e só nos casos em
+      que a faixa apanhava apenas o número. Depois: 28 em 28. É por isso
+      que os testes sintéticos da v1.35.0 passavam e a etiqueta real não
+      lia — as imagens de teste tinham uma linha só
+  v1.35.0
     - fix: a leitura do código por OCR continuava a não funcionar em boa
       parte das etiquetas, apesar de a v1.28.0 anunciar o contrário. Nessa
       versão o limiar de preto-e-branco passou a ser calculado a partir da
@@ -589,8 +617,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.35.0</title>
-<meta name="description" content="Consulta de Artigos v1.35.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.36.0</title>
+<meta name="description" content="Consulta de Artigos v1.36.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3209,7 +3237,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.35.0</span>
+  <span class="version">v1.36.0</span>
 </header>
 
 <div class="container">
@@ -4741,10 +4769,47 @@ function extrairDigitos(textoOcr) {
 }
 
 // Só aceita um candidato com dígitos suficientes (por omissão, 4), para
-// não mostrar "ruído" de 1 número solto lido por engano.
+// não mostrar "ruído" de 1 número solto lido por engano. Usado tal e qual
+// para o código de BARRAS, em que o ZXing devolve um número só.
 function digitosValidos(textoOcr, minDigitos = 4) {
   const digitos = extrairDigitos(textoOcr);
   return digitos.length >= minDigitos ? digitos : '';
+}
+
+// Escolhe o código de artigo de entre as linhas que o OCR leu na faixa.
+//
+// Isto substitui, no caminho do OCR, o antigo digitosValidos(texto todo).
+// A faixa recortada quase nunca contém só a linha do número: apanha o fim
+// da descrição em cima e a posição/lote em baixo. Juntar os dígitos do
+// texto todo dava um número inventado — "10X10" + "4827516" + "A-12" saía
+// como 10104827516012 — e nunca correspondia a artigo nenhum.
+//
+// Critério: ganha a linha com a LETRA MAIOR, não a que tem mais dígitos. O
+// código do artigo é o texto grande da etiqueta; descrição, lote e posição
+// são miudinhos. Medido por altura da caixa que o Tesseract devolve por
+// linha. Escolher pelo comprimento parecia natural mas erra em dois casos
+// vulgares: um código de 4 dígitos empata com o "10X10" da descrição, e um
+// número de lote comprido ganha sempre ao código.
+//
+// Se a linha maior não for CLARAMENTE maior que a seguinte, não se escolhe
+// nada — mais vale tentar outra vez no ciclo seguinte do que preencher a
+// pesquisa com o número errado.
+const OCR_DOMINANCIA_ALTURA = 1.35;
+
+function escolherCodigoDasLinhas(linhas, minDigitos = 4) {
+  const candidatos = (linhas || [])
+    .map(linha => ({
+      digitos: extrairDigitos(linha && linha.text),
+      altura: linha && linha.bbox ? (linha.bbox.y1 - linha.bbox.y0) : 0,
+    }))
+    .filter(c => c.digitos.length >= minDigitos && c.altura > 0)
+    .sort((a, b) => b.altura - a.altura);
+
+  if (!candidatos.length) return '';
+  if (candidatos.length === 1) return candidatos[0].digitos;
+  return candidatos[0].altura >= candidatos[1].altura * OCR_DOMINANCIA_ALTURA
+    ? candidatos[0].digitos
+    : '';
 }
 
 // (B) Calcula, em pixels do vídeo original, o retângulo que corresponde à
@@ -5000,14 +5065,23 @@ async function abrirScanAoVivo() {
 
   // (A) Cria o motor de OCR uma única vez por sessão de scan (não a cada
   // fotograma — recriá-lo seria bem mais lento), já configurado para só
-  // reconhecer dígitos e tratar a imagem como uma linha única de texto.
+  // reconhecer dígitos.
+  //
+  // SPARSE_TEXT e não SINGLE_LINE: o SINGLE_LINE promete ao motor que a
+  // imagem tem UMA linha de texto e mais nada. A faixa recortada quase
+  // nunca é assim — apanha o fim da descrição em cima e a posição em baixo
+  // — e nesse caso o SINGLE_LINE devolve lixo ou, com duas linhas
+  // vizinhas, não devolve nada de todo. Era esta a razão de o OCR não ler
+  // etiquetas reais mesmo depois de corrigido o limiar na v1.35.0. O
+  // SPARSE_TEXT procura texto onde ele estiver e devolve as linhas
+  // separadas, que é o que o escolherCodigoDasLinhas precisa.
   if (temTesseract) {
     document.getElementById('scan-status').textContent = 'A preparar leitura…';
     try {
       scanWorker = await Tesseract.createWorker('eng');
       await scanWorker.setParameters({
         tessedit_char_whitelist: '0123456789',
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+        tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
       });
     } catch (err) {
       // O Tesseract descarrega o motor e os dados de idioma de OUTROS
@@ -5195,6 +5269,20 @@ async function loopCodigoBarras() {
   }
 }
 
+// Tira o código da resposta do Tesseract, preferindo as linhas com caixa
+// (ver escolherCodigoDasLinhas).
+//
+// A reserva pelo texto corrido existe para o caso de uma versão do
+// Tesseract não devolver as linhas nesta forma: aí perde-se a escolha por
+// altura e volta-se ao comportamento antigo, que acerta nas etiquetas em
+// que a faixa apanha só o número. Vale mais um OCR pior do que um OCR que
+// deixa de devolver seja o que for por a resposta ter mudado de formato.
+function lerCodigoDaResposta(data) {
+  const linhas = data && data.lines;
+  if (linhas && linhas.length) return escolherCodigoDasLinhas(linhas);
+  return digitosValidos(data && data.text);
+}
+
 // Ciclo do OCR (reserva, para etiquetas em que o código de barras está
 // rasgado, tapado ou gasto): recorta a faixa da moldura, amplia-a e
 // converte-a a preto e branco antes de a enviar ao Tesseract. Espera
@@ -5209,9 +5297,12 @@ async function loopOcr() {
     if (video.videoWidth && !scanCandidatoAtual) {
       try {
         const fotograma = prepararFotogramaParaOcr(video, canvas);
-        const { data: { text } } = await scanWorker.recognize(fotograma);
+        // O terceiro argumento pede as linhas com as respectivas caixas —
+        // sem ele o Tesseract devolve só o texto corrido, e é a ALTURA de
+        // cada linha que distingue o código do resto da etiqueta.
+        const { data } = await scanWorker.recognize(fotograma, {}, { blocks: true, text: true });
         if (!scanLoopAtivo) break; // fechado/confirmado enquanto o OCR corria
-        scanEstadoLeitura = processarLeituraConsecutiva(scanEstadoLeitura, digitosValidos(text));
+        scanEstadoLeitura = processarLeituraConsecutiva(scanEstadoLeitura, lerCodigoDaResposta(data));
         if (scanEstadoLeitura.confirmado && !scanCandidatoAtual) {
           mostrarCandidato(scanEstadoLeitura.ultima);
         }
