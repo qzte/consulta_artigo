@@ -12,6 +12,8 @@ const {
   lerCodigoDaResposta,
   resumirLinhasOcr,
   explicarEscolhaOcr,
+  candidatosDaLinha,
+  CODIGO_DIGITOS,
   calcularRetanguloRecorte,
   calcularLimiarOtsu,
   aplicarLimiarPB,
@@ -20,12 +22,15 @@ const {
   SCAN_WRAP_ASPECT,
   SCAN_FRAME_INSET,
   SCAN_AMPLIACAO,
-  OCR_DOMINANCIA_ALTURA,
 } = carregarDoIndex([
   'OCR_CONFUSOES',
   'extrairDigitos',
   'digitosValidos',
-  'OCR_DOMINANCIA_ALTURA',
+    'CODIGO_DIGITOS',
+  'CAMPO_CODIGO',
+  'candidatosDaLinha',
+  'centroVertical',
+  'linhasDoCampoCodigo',
   'escolherCodigoDasLinhas',
   'lerCodigoDaResposta',
   'resumirLinhasOcr',
@@ -93,10 +98,18 @@ test('o motor de OCR não usa PSM.SINGLE_LINE', () => {
   );
 });
 
-test('o motor de OCR usa SPARSE_TEXT e só aceita dígitos', () => {
-  const src = lerIndexHtml();
-  assert.match(src, /tessedit_pageseg_mode:\s*Tesseract\.PSM\.SPARSE_TEXT/);
-  assert.match(src, /tessedit_char_whitelist:\s*'0123456789'/);
+test('o motor de OCR usa SPARSE_TEXT', () => {
+  assert.match(lerIndexHtml(), /tessedit_pageseg_mode:\s*Tesseract\.PSM\.SPARSE_TEXT/);
+});
+
+test('o motor de OCR NÃO tem lista branca só de dígitos', () => {
+  // A lista de dígitos apagava os nomes dos campos ("Produto:"), que são o
+  // que diz qual dos números é o código, e apagava o "B" de "B1240001940",
+  // deixando o Tag com os mesmos 10 dígitos do código do produto.
+  assert.ok(
+    !/tessedit_char_whitelist:\s*'0123456789'/.test(lerIndexHtml()),
+    'com a lista branca de dígitos o Tag fica indistinguível do Produto'
+  );
 });
 
 test('o OCR pede as linhas ao Tesseract, não só o texto corrido', () => {
@@ -111,72 +124,108 @@ test('o OCR pede as linhas ao Tesseract, não só o texto corrido', () => {
 });
 
 // ── escolherCodigoDasLinhas ─────────────────────────────
-// A faixa recortada quase nunca contém só a linha do número: apanha o fim
-// da descrição em cima e a posição/lote em baixo. Ganha a linha de LETRA
-// MAIOR, que é onde está o código do artigo.
+// A etiqueta é uma lista de campos, TODOS do mesmo tamanho de letra:
+//   Servico / Tag: B1240001940 / Produto: 1260500100 / Localizacao: P.04.00
+// O código é o do campo "Produto", e tem sempre 10 dígitos.
 
-test('numa faixa só com o número, esse número é o candidato', () => {
-  assert.equal(escolherCodigoDasLinhas([linha('4827516', 65)]), '4827516');
-});
+// A linha do campo e a do valor ficam à mesma altura na imagem, ainda que
+// o motor as devolva separadas.
+const mesmaFaixa = (y, altura = 40) => [y, altura];
 
-test('entre a descrição, o código e a posição, ganha a linha de letra maior', () => {
+test('leitura REAL da etiqueta do armazém (v1.36/37 não escolhiam nada aqui)', () => {
+  // Copiada do painel de diagnóstico, no telemóvel, sobre a etiqueta a
+  // sério. As três linhas têm 122, 126 e 116px — quase iguais, e por isso
+  // a regra da "letra maior" recusava-se a escolher.
   const lidas = [
-    linha('10 10', 20),      // "COMPRESSA ... 10X10"
-    linha('4827516', 65),    // o código
-    linha('12', 20),         // "POS: A-12"
+    linha('81240001940', 122, 0),    // Tag: B1240001940 (o B saiu como 8)
+    linha('1260500100', 126, 200),   // Produto  ← o que se procura
+    linha('11 0400', 116, 400),      // Localizacao: P.04.00
   ];
-  assert.equal(escolherCodigoDasLinhas(lidas), '4827516');
+  assert.equal(escolherCodigoDasLinhas(lidas), '1260500100');
 });
 
-test('um número de lote comprido não ganha ao código só por ser comprido', () => {
-  // Este é o caso que uma regra "ganha quem tem mais dígitos" erra sempre.
-  const lidas = [linha('20240115998', 20), linha('4821', 65)];
-  assert.equal(escolherCodigoDasLinhas(lidas), '4821');
+test('havendo o campo "Produto", é a faixa dele que decide', () => {
+  const lidas = [
+    linha('Tag:', 40, 0), linha('B1240001940', 40, 0),
+    linha('Produto:', 40, 100), linha('1260500100', 40, 100),
+    linha('Localizacao: P.04.00', 40, 200),
+  ];
+  assert.equal(escolherCodigoDasLinhas(lidas), '1260500100');
 });
 
-test('um código curto ganha à descrição, apesar de terem os mesmos dígitos', () => {
-  // 4 dígitos contra os 4 do "10X10" — pelo comprimento era empate.
-  const lidas = [linha('1010', 20), linha('4821', 65)];
-  assert.equal(escolherCodigoDasLinhas(lidas), '4821');
+test('o campo e o valor podem vir na mesma linha', () => {
+  // Aqui a correcção de confusões transforma os "o" de "Produto" em zeros,
+  // e a linha inteira daria 12 dígitos — daí a avaliação palavra a palavra.
+  assert.equal(escolherCodigoDasLinhas([linha('Produto: 1260500100', 40, 0)]), '1260500100');
 });
 
-test('linhas com dígitos a menos são ignoradas', () => {
-  assert.equal(escolherCodigoDasLinhas([linha('12', 80), linha('4827516', 30)]), '4827516');
+test('um Tag de 10 dígitos ao lado do Produto não é escolhido', () => {
+  // O campo manda: mesmo havendo outro número de 10 dígitos na imagem, só
+  // conta o que está na faixa do "Produto".
+  const lidas = [
+    linha('Tag:', 40, 0), linha('1240001940', 40, 0),
+    linha('Produto:', 40, 100), linha('1260500100', 40, 100),
+  ];
+  assert.equal(escolherCodigoDasLinhas(lidas), '1260500100');
 });
 
-test('sem nenhuma linha com dígitos suficientes não há candidato', () => {
-  assert.equal(escolherCodigoDasLinhas([linha('12', 65), linha('7', 20)]), '');
+test('sem o campo "Produto", vale o único número de 10 dígitos', () => {
+  const lidas = [linha('81240001940', 40, 0), linha('1260500100', 40, 100), linha('110400', 40, 200)];
+  assert.equal(escolherCodigoDasLinhas(lidas), '1260500100');
+});
+
+test('sem o campo e com dois números de 10 dígitos, não se escolhe nada', () => {
+  // O caso que a lista branca de dígitos provocava: apagava o "B" do Tag e
+  // deixava dois números indistinguíveis. Não havendo como decidir, não se
+  // decide — mais vale nada do que o número errado.
+  const lidas = [linha('1240001940', 40, 0), linha('1260500100', 40, 100)];
+  assert.equal(escolherCodigoDasLinhas(lidas), '');
+});
+
+test('números que não tenham 10 dígitos não são candidatos', () => {
+  assert.equal(escolherCodigoDasLinhas([linha('12605001', 40, 0)]), '', '8 dígitos');
+  assert.equal(escolherCodigoDasLinhas([linha('126050010012', 40, 0)]), '', '12 dígitos');
+  assert.equal(escolherCodigoDasLinhas([linha('P.04.00', 40, 0)]), '');
   assert.equal(escolherCodigoDasLinhas([]), '');
   assert.equal(escolherCodigoDasLinhas(null), '');
 });
 
-test('duas linhas de tamanho parecido não escolhem nada', () => {
-  // Ambiguidade real: mais vale não mostrar nada e tentar outra vez do que
-  // preencher a pesquisa com o número errado.
-  assert.equal(escolherCodigoDasLinhas([linha('4827516', 60), linha('1234567', 58)]), '');
-});
-
-test('a linha maior tem de ser claramente maior, não maior por um pixel', () => {
-  const alturaBase = 40;
-  const abaixoDoLimite = alturaBase * (OCR_DOMINANCIA_ALTURA - 0.05);
-  const acimaDoLimite  = alturaBase * (OCR_DOMINANCIA_ALTURA + 0.05);
-  assert.equal(escolherCodigoDasLinhas([linha('4827516', abaixoDoLimite), linha('1234', alturaBase)]), '');
-  assert.equal(escolherCodigoDasLinhas([linha('4827516', acimaDoLimite), linha('1234', alturaBase)]), '4827516');
-});
-
 test('linhas sem caixa são ignoradas em vez de rebentarem', () => {
-  assert.doesNotThrow(() => escolherCodigoDasLinhas([{ text: '4827516' }, null]));
-  assert.equal(escolherCodigoDasLinhas([{ text: '4827516' }, null]), '');
+  assert.doesNotThrow(() => escolherCodigoDasLinhas([{ text: '1260500100' }, null]));
+  assert.equal(escolherCodigoDasLinhas([{ text: '1260500100' }, null]), '');
+});
+
+test('o código tem 10 dígitos — a constante e a regra dizem o mesmo', () => {
+  assert.equal(CODIGO_DIGITOS, 10);
+  const dez = '1'.repeat(CODIGO_DIGITOS);
+  assert.deepEqual(candidatosDaLinha(dez), [dez]);
+  assert.deepEqual(candidatosDaLinha('1'.repeat(CODIGO_DIGITOS - 1)), []);
+});
+
+// ── candidatosDaLinha ───────────────────────────────────
+
+test('a palavra do valor é isolada do nome do campo', () => {
+  assert.deepEqual(candidatosDaLinha('Produto: 1260500100'), ['1260500100']);
+  assert.deepEqual(candidatosDaLinha('Tag: B1240001940'), []);
+});
+
+test('as letras confundíveis dentro do número são corrigidas', () => {
+  assert.deepEqual(candidatosDaLinha('126O5OO1OO'), ['1260500100']);
+});
+
+test('uma palavra com letras a sério não passa por número', () => {
+  // "B1240001940" tem 11 caracteres; o B vira 8 e ficam 11 dígitos.
+  assert.deepEqual(candidatosDaLinha('B1240001940'), []);
 });
 
 // ── lerCodigoDaResposta ─────────────────────────────────
 
 test('havendo linhas, é por elas que se decide', () => {
   const data = {
-    text: '1010\n4827516\n12',
-    lines: [linha('1010', 20), linha('4827516', 65), linha('12', 20)],
+    text: '81240001940\n1260500100\n11 0400',
+    lines: [linha('81240001940', 122, 0), linha('1260500100', 126, 200), linha('11 0400', 116, 400)],
   };
-  assert.equal(lerCodigoDaResposta(data), '4827516');
+  assert.equal(lerCodigoDaResposta(data), '1260500100');
 });
 
 test('sem linhas, recorre-se ao texto corrido em vez de desistir', () => {
@@ -232,17 +281,19 @@ test('a explicação da escolha diz o mesmo que a escolha', () => {
 
 test('cada situação tem o seu motivo, e nunca vem vazio', () => {
   const motivo = data => explicarEscolhaOcr(data).motivo;
-  assert.match(motivo({ lines: [linha('1010', 20), linha('4827516', 65)] }), /mais alta/);
-  assert.match(motivo({ lines: [linha('4827516', 60), linha('1234567', 58)] }), /ambíguo/);
-  assert.match(motivo({ lines: [linha('12', 65)] }), /nenhuma linha/);
-  assert.match(motivo({ lines: [linha('4827516', 65)] }), /só uma linha/);
-  assert.match(motivo({ text: '4827516' }), /texto corrido/);
-  assert.match(motivo({}), /não devolveu texto/);
+  assert.match(motivo({ lines: [linha('Produto:', 40, 0), linha('1260500100', 40, 0)] }), /campo "Produto"/);
+  assert.match(motivo({ lines: [linha('1260500100', 40, 0)] }), /único número de 10 dígitos/);
+  assert.match(motivo({ lines: [linha('1240001940', 40, 0), linha('1260500100', 40, 100)] }), /ambíguo/);
+  assert.match(motivo({ lines: [linha('12', 40, 0)] }), /nenhum número de 10 dígitos/);
+  assert.match(motivo({ text: '1260500100' }), /texto corrido/);
+  assert.match(motivo({}), /não devolveu linhas/);
 });
 
-test('o motivo do caso ambíguo mostra as duas alturas', () => {
+test('o motivo do caso ambíguo mostra os candidatos em conflito', () => {
   // Sem os números, o painel diz "ambíguo" e deixa quem lê na mesma.
-  assert.match(explicarEscolhaOcr({ lines: [linha('4827516', 60), linha('1234567', 58)] }).motivo, /60px.*58px/);
+  const m = explicarEscolhaOcr({ lines: [linha('1240001940', 40, 0), linha('1260500100', 40, 100)] }).motivo;
+  assert.match(m, /1240001940/);
+  assert.match(m, /1260500100/);
 });
 
 // ── calcularRetanguloRecorte ────────────────────────────

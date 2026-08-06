@@ -2,11 +2,42 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.37.0
+  Consulta de Artigos — v1.38.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.37.0 (atual)
+  v1.38.0 (atual)
+    - fix: o OCR lia o código certo e deitava-o fora. O modo de diagnóstico
+      da v1.37.0 mostrou-o numa etiqueta real: o motor devolvia as três
+      linhas correctamente, incluindo "1260500100", mas a regra de escolha
+      não ficava com nenhuma. A regra da v1.36.0 dava a vitória à linha de
+      LETRA MAIOR, e nesta etiqueta os campos têm todos o mesmo tamanho —
+      122, 126 e 116 pixéis. Sem uma linha claramente maior, a regra
+      abstinha-se, que era o comportamento pedido mas dava em "não lê"
+    - fix: a escolha passa a ser pelo CAMPO e pelo formato, não pelo
+      tamanho da letra. Havendo o campo "Produto" na imagem, olha-se só
+      para a faixa horizontal dele; não havendo, procura-se em todas as
+      linhas. Em qualquer dos casos só se aceita um número de exactamente
+      10 dígitos, e só se for único
+    - fix: deixa de haver lista branca de caracteres no motor. Parecia
+      acertada — da etiqueta só interessam números — mas fazia mal por
+      duas vias: apagava os nomes dos campos ("Produto:"), que são o que
+      diz qual dos números é o código, e apagava as letras dentro dos
+      valores. O "B" de "B1240001940" desaparecia e o Tag ficava com 10
+      dígitos, o mesmo comprimento do código do produto e impossível de
+      distinguir. Com as letras activadas o Tag fica com 11
+    - fix: um código de barras passa a precisar de 2 leituras iguais
+      seguidas, como já acontecia no OCR. A v1.28.0 tinha dispensado essa
+      confirmação por o ZXing validar a estrutura das barras; o argumento
+      não se sustentou. Apontada a câmara a uma etiqueta SEM código de
+      barras nenhum, o scan apresentou "08189271" como código encontrado.
+      O Code 39 não tem dígito de controlo e num fotograma tremido as
+      sombras chegam para o leitor julgar ver barras. A segunda leitura
+      custa ~0,12 s, um ciclo
+    - nota: medido com o Tesseract sobre a etiqueta real reconstruída, em
+      quatro condições de luz e foco. Antes: 0 em 5. Depois: 5 em 5. A
+      leitura verdadeira do telemóvel está guardada como caso de teste
+  v1.37.0
     - feat: modo de diagnóstico no scan, desligado por omissão (botão
       "Diagnóstico" por baixo do estado). Mostra a faixa exactamente como
       ela vai para o motor de OCR, o texto cru que ele devolveu linha a
@@ -633,8 +664,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.37.0</title>
-<meta name="description" content="Consulta de Artigos v1.37.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.38.0</title>
+<meta name="description" content="Consulta de Artigos v1.38.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3267,7 +3298,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.37.0</span>
+  <span class="version">v1.38.0</span>
 </header>
 
 <div class="container">
@@ -4823,38 +4854,75 @@ function digitosValidos(textoOcr, minDigitos = 4) {
 
 // Escolhe o código de artigo de entre as linhas que o OCR leu na faixa.
 //
-// Isto substitui, no caminho do OCR, o antigo digitosValidos(texto todo).
-// A faixa recortada quase nunca contém só a linha do número: apanha o fim
-// da descrição em cima e a posição/lote em baixo. Juntar os dígitos do
-// texto todo dava um número inventado — "10X10" + "4827516" + "A-12" saía
-// como 10104827516012 — e nunca correspondia a artigo nenhum.
+// A etiqueta é uma lista de campos, todos do MESMO tamanho de letra:
 //
-// Critério: ganha a linha com a LETRA MAIOR, não a que tem mais dígitos. O
-// código do artigo é o texto grande da etiqueta; descrição, lote e posição
-// são miudinhos. Medido por altura da caixa que o Tesseract devolve por
-// linha. Escolher pelo comprimento parecia natural mas erra em dois casos
-// vulgares: um código de 4 dígitos empata com o "10X10" da descrição, e um
-// número de lote comprido ganha sempre ao código.
+//   Servico:      11I
+//   Tag:          B1240001940
+//   Produto:      1260500100     ← é este o código que se procura
+//   Localizacao:  P.04.00
 //
-// Se a linha maior não for CLARAMENTE maior que a seguinte, não se escolhe
-// nada — mais vale tentar outra vez no ciclo seguinte do que preencher a
-// pesquisa com o número errado.
-const OCR_DOMINANCIA_ALTURA = 1.35;
+// Duas tentativas anteriores falharam aqui, e por razões que só a etiqueta
+// verdadeira mostrou:
+//
+//   - juntar os dígitos do texto todo dava um número inventado, colando os
+//     três campos num só (v1.35.0 e anteriores);
+//   - escolher a linha de letra maior não decide nada, porque os campos
+//     têm todos o mesmo tamanho — 122, 126 e 116 pixéis na leitura real.
+//     A regra recusava-se a escolher e o scan ficava sem candidato
+//     (v1.36.0 e v1.37.0).
+//
+// O que distingue mesmo o código é o campo a que pertence e o facto de ser
+// uma sequência de exactamente 10 dígitos. Daí:
+//
+//   1. havendo o campo "Produto" na imagem, olha-se só para a faixa
+//      horizontal dele — o valor está à mesma altura do nome do campo,
+//      quer venha na mesma linha, quer venha separado (o SPARSE_TEXT
+//      separa-os quando há um vão grande entre os dois);
+//   2. não havendo, procura-se em todas as linhas.
+//
+// Em qualquer dos casos só se aceita um candidato de 10 dígitos, e só se
+// ele for único. Havendo dois, não se escolhe nada e tenta-se no ciclo
+// seguinte — mais vale não mostrar nada do que mostrar o número errado.
+const CODIGO_DIGITOS = 10;
+const CAMPO_CODIGO = /pr[o0]du/i; // "Produto", tolerando o o→0 do OCR
 
-function escolherCodigoDasLinhas(linhas, minDigitos = 4) {
-  const candidatos = (linhas || [])
-    .map(linha => ({
-      digitos: extrairDigitos(linha && linha.text),
-      altura: linha && linha.bbox ? (linha.bbox.y1 - linha.bbox.y0) : 0,
-    }))
-    .filter(c => c.digitos.length >= minDigitos && c.altura > 0)
-    .sort((a, b) => b.altura - a.altura);
+// Candidatos numa linha. Duas leituras de propósito, porque o OCR tanto
+// devolve "Produto: 1260500100" junto como o valor sozinho:
+//   (a) a linha inteira, se der exactamente 10 dígitos;
+//   (b) qualquer PALAVRA que seja toda dígitos e tenha 10.
+// A (b) é indispensável quando o nome do campo vem colado ao valor: a
+// correcção de confusões transforma os "o" de "Produto" em zeros, e a
+// linha inteira passaria a dar 12 dígitos em vez de 10.
+function candidatosDaLinha(texto) {
+  const candidatos = new Set();
+  const linhaToda = extrairDigitos(texto);
+  if (linhaToda.length === CODIGO_DIGITOS) candidatos.add(linhaToda);
+  for (const palavra of String(texto || '').split(/[^0-9A-Za-z]+/)) {
+    const digitos = extrairDigitos(palavra);
+    if (digitos.length === palavra.length && digitos.length === CODIGO_DIGITOS) {
+      candidatos.add(digitos);
+    }
+  }
+  return [...candidatos];
+}
 
-  if (!candidatos.length) return '';
-  if (candidatos.length === 1) return candidatos[0].digitos;
-  return candidatos[0].altura >= candidatos[1].altura * OCR_DOMINANCIA_ALTURA
-    ? candidatos[0].digitos
-    : '';
+function centroVertical(linha) {
+  return (linha.bbox.y0 + linha.bbox.y1) / 2;
+}
+
+function linhasDoCampoCodigo(linhas) {
+  const campo = linhas.find(l => CAMPO_CODIGO.test(l.text || ''));
+  if (!campo) return null;
+  const centro = centroVertical(campo);
+  const tolerancia = Math.max(campo.bbox.y1 - campo.bbox.y0, 1) * 0.8;
+  return linhas.filter(l => Math.abs(centroVertical(l) - centro) <= tolerancia);
+}
+
+function escolherCodigoDasLinhas(linhas) {
+  const comCaixa = (linhas || []).filter(l => l && l.bbox);
+  const alvo = linhasDoCampoCodigo(comCaixa) || comCaixa;
+  const candidatos = [...new Set(alvo.flatMap(l => candidatosDaLinha(l.text)))];
+  return candidatos.length === 1 ? candidatos[0] : '';
 }
 
 // ── Diagnóstico do OCR ──────────────────────────────────
@@ -4876,38 +4944,35 @@ function resumirLinhasOcr(data) {
 }
 
 // Porque é que saiu (ou não saiu) um candidato desta leitura.
-function explicarEscolhaOcr(data, minDigitos = 4) {
-  const linhas = resumirLinhasOcr(data);
-  if (!linhas.length) {
-    const soTexto = digitosValidos(data && data.text, minDigitos);
+function explicarEscolhaOcr(data) {
+  const comCaixa = ((data && data.lines) || []).filter(l => l && l.bbox);
+  if (!comCaixa.length) {
+    const soTexto = digitosValidos(data && data.text);
     return {
       escolhido: soTexto,
       motivo: soTexto
         ? 'sem linhas do motor — usado o texto corrido (reserva)'
-        : 'o motor não devolveu texto nenhum nesta imagem',
+        : 'o motor não devolveu linhas nenhumas nesta imagem',
     };
   }
 
-  const validas = linhas.filter(l => l.digitos.length >= minDigitos && l.altura > 0)
-    .sort((a, b) => b.altura - a.altura);
+  const doCampo = linhasDoCampoCodigo(comCaixa);
+  const alvo = doCampo || comCaixa;
+  const onde = doCampo
+    ? `na faixa do campo "Produto" (${doCampo.length} linha(s))`
+    : 'em todas as linhas (campo "Produto" não encontrado)';
+  const candidatos = [...new Set(alvo.flatMap(l => candidatosDaLinha(l.text)))];
 
-  if (!validas.length) {
-    return { escolhido: '', motivo: `nenhuma linha com ${minDigitos} dígitos ou mais` };
+  if (candidatos.length === 1) {
+    return { escolhido: candidatos[0], motivo: `único número de ${CODIGO_DIGITOS} dígitos ${onde}` };
   }
-  if (validas.length === 1) {
-    return { escolhido: validas[0].digitos, motivo: 'só uma linha com dígitos suficientes' };
-  }
-  const [maior, seguinte] = validas;
-  if (maior.altura >= seguinte.altura * OCR_DOMINANCIA_ALTURA) {
+  if (candidatos.length > 1) {
     return {
-      escolhido: maior.digitos,
-      motivo: `linha mais alta (${maior.altura}px) contra a seguinte (${seguinte.altura}px)`,
+      escolhido: '',
+      motivo: `ambíguo: ${candidatos.length} números de ${CODIGO_DIGITOS} dígitos ${onde} — ${candidatos.join(', ')}`,
     };
   }
-  return {
-    escolhido: '',
-    motivo: `ambíguo: a mais alta (${maior.altura}px) não chega a ser ${OCR_DOMINANCIA_ALTURA}x a seguinte (${seguinte.altura}px)`,
-  };
+  return { escolhido: '', motivo: `nenhum número de ${CODIGO_DIGITOS} dígitos ${onde}` };
 }
 
 // (B) Calcula, em pixels do vídeo original, o retângulo que corresponde à
@@ -5038,6 +5103,7 @@ let scanBarcodeReader = null;
 let scanLoopAtivo = false;
 let scanCandidatoAtual = '';
 let scanEstadoLeitura = { ultima: '', count: 0 };
+let scanEstadoCodigoBarras = { ultima: '', count: 0 };
 
 // Tempo de espera entre tentativas de OCR. Isto é A PARTIR do fim da
 // tentativa anterior (nunca em paralelo), para não sobrecarregar o
@@ -5129,6 +5195,7 @@ async function abrirScanAoVivo() {
   document.getElementById('scan-candidate').style.display = 'none';
   scanCandidatoAtual = '';
   scanEstadoLeitura = { ultima: '', count: 0 };
+  scanEstadoCodigoBarras = { ultima: '', count: 0 };
   document.getElementById('scan-status').textContent = 'A abrir câmara…';
   overlay.classList.add('open');
 
@@ -5178,7 +5245,17 @@ async function abrirScanAoVivo() {
     try {
       scanWorker = await Tesseract.createWorker('eng');
       await scanWorker.setParameters({
-        tessedit_char_whitelist: '0123456789',
+        // SEM lista branca de caracteres. Parece contra-intuitivo — a
+        // etiqueta só tem números que interessem — mas a lista de dígitos
+        // fazia mal por duas vias, ambas medidas sobre a etiqueta real:
+        //
+        //   1. apagava os nomes dos campos ("Tag:", "Produto:"), que são
+        //      justamente o que diz QUAL dos números é o código;
+        //   2. apagava as letras dentro dos valores. O "B" de
+        //      "B1240001940" desaparecia e o Tag ficava com 10 dígitos —
+        //      o mesmo comprimento do código do produto, impossível de
+        //      distinguir. Com as letras activadas o B sobrevive, o Tag
+        //      fica com 11 e deixa de haver confusão.
         tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
       });
     } catch (err) {
@@ -5216,6 +5293,7 @@ function fecharScanAoVivo() {
   scanLoopAtivo = false;
   scanCandidatoAtual = '';
   scanEstadoLeitura = { ultima: '', count: 0 };
+  scanEstadoCodigoBarras = { ultima: '', count: 0 };
   if (scanStream) {
     scanStream.getTracks().forEach(t => t.stop());
     scanStream = null;
@@ -5250,6 +5328,7 @@ function continuarScan() {
   document.getElementById('scan-candidate').style.display = 'none';
   scanCandidatoAtual = '';
   scanEstadoLeitura = { ultima: '', count: 0 };
+  scanEstadoCodigoBarras = { ultima: '', count: 0 };
   document.getElementById('scan-status').textContent = 'A tentar ler o código…';
 }
 
@@ -5347,11 +5426,16 @@ function mostrarCandidato(digitos) {
 // Ciclo do código de barras: tenta a cada SCAN_BARCODE_INTERVALO_MS, sobre
 // o fotograma inteiro.
 //
-// Ao contrário do OCR, uma leitura basta — não se exigem 2 leituras
-// iguais seguidas. Um código de barras Code 39/EAN só é dado como lido
-// depois de o próprio ZXing validar a estrutura das barras (e, no EAN, o
-// dígito de controlo); confirmar outra vez só obrigava a pessoa a segurar
-// o telemóvel imóvel mais uns segundos sem nada ganhar em fiabilidade.
+// Exige 2 leituras iguais seguidas, tal como o OCR. A v1.28.0 tinha
+// dispensado essa confirmação, com o argumento de que o ZXing só dá um
+// código como lido depois de validar a estrutura das barras. O argumento
+// não se sustentou: apontando a câmara a uma etiqueta que NÃO TEM código
+// de barras nenhum, o scan apresentou "08189271" como código encontrado.
+// O Code 39 não tem dígito de controlo, e num fotograma tremido as
+// sombras chegam para o ZXing julgar ver barras — ainda por cima com o
+// TRY_HARDER ligado, que o autoriza a esforçar-se mais por fotograma.
+// Um falso positivo custa mais do que os ~0,12 s da segunda leitura, que
+// é o tempo de um ciclo.
 async function loopCodigoBarras() {
   const video  = document.getElementById('scan-video');
   const canvas = document.getElementById('scan-canvas-barcode');
@@ -5360,7 +5444,10 @@ async function loopCodigoBarras() {
     if (video.videoWidth && !scanCandidatoAtual) {
       const digitos = await tentarLerCodigoBarras(prepararFotogramaParaCodigoBarras(video, canvas));
       if (!scanLoopAtivo) break; // fechado/confirmado enquanto a leitura corria
-      if (digitos) mostrarCandidato(digitos);
+      scanEstadoCodigoBarras = processarLeituraConsecutiva(scanEstadoCodigoBarras, digitos);
+      if (scanEstadoCodigoBarras.confirmado && !scanCandidatoAtual) {
+        mostrarCandidato(scanEstadoCodigoBarras.ultima);
+      }
     }
     if (!scanLoopAtivo) break;
     await new Promise(resolve => setTimeout(resolve, SCAN_BARCODE_INTERVALO_MS));
