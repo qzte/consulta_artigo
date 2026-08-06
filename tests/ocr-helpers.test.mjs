@@ -7,7 +7,7 @@ import { carregarDoIndex, lerIndexHtml } from './harness.mjs';
 
 const {
   extrairDigitos,
-  digitosValidos,
+  codigoDeArtigoValido,
   escolherCodigoDasLinhas,
   lerCodigoDaResposta,
   resumirLinhasOcr,
@@ -25,7 +25,7 @@ const {
 } = carregarDoIndex([
   'OCR_CONFUSOES',
   'extrairDigitos',
-  'digitosValidos',
+  'codigoDeArtigoValido',
     'CODIGO_DIGITOS',
   'CAMPO_CODIGO',
   'candidatosDaLinha',
@@ -72,15 +72,14 @@ test('as letras confundíveis são convertidas mesmo fora do número', () => {
   assert.equal(extrairDigitos('COD 4827516'), '04827516');
 });
 
-test('digitosValidos rejeita leituras curtas de mais para serem um código', () => {
-  assert.equal(digitosValidos('123'), '', '3 dígitos é ruído, não um código');
-  assert.equal(digitosValidos('1234'), '1234', '4 dígitos é o mínimo aceite');
-  assert.equal(digitosValidos('4827516'), '4827516');
-});
-
-test('digitosValidos aceita um mínimo à medida', () => {
-  assert.equal(digitosValidos('12345', 6), '');
-  assert.equal(digitosValidos('123456', 6), '123456');
+test('um código de artigo tem exactamente 10 dígitos', () => {
+  assert.equal(codigoDeArtigoValido('1260500100'), '1260500100');
+  assert.equal(codigoDeArtigoValido('126050010'), '', '9 dígitos');
+  assert.equal(codigoDeArtigoValido('12605001000'), '', '11 dígitos');
+  assert.equal(codigoDeArtigoValido('08189271'), '', 'o falso positivo do código de barras');
+  assert.equal(codigoDeArtigoValido(''), '');
+  assert.equal(codigoDeArtigoValido(null), '');
+  assert.equal(codigoDeArtigoValido(undefined), '');
 });
 
 // ── configuração do motor ───────────────────────────────
@@ -110,6 +109,30 @@ test('o motor de OCR NÃO tem lista branca só de dígitos', () => {
     !/tessedit_char_whitelist:\s*'0123456789'/.test(lerIndexHtml()),
     'com a lista branca de dígitos o Tag fica indistinguível do Produto'
   );
+});
+
+test('o código de barras passa pela mesma validação de formato que o OCR', () => {
+  // tentarLerCodigoBarras depende do leitor ZXing e da câmara, por isso não
+  // dá para o chamar aqui. Mas a ligação que interessa é visível no
+  // ficheiro: sem ela, um falso positivo de 8 dígitos como o "08189271"
+  // volta a ser apresentado como código encontrado.
+  const src = lerIndexHtml();
+  const corpo = src.slice(src.indexOf('async function tentarLerCodigoBarras'));
+  assert.match(
+    corpo.slice(0, corpo.indexOf('\n}')),
+    /codigoDeArtigoValido\(/,
+    'tentarLerCodigoBarras tem de validar o formato antes de devolver o código'
+  );
+});
+
+test('as duas vias usam a MESMA função de validação', () => {
+  // Uma validação copiada para cada via divergiria — foi assim que o limiar
+  // de Otsu ficou a ser calculado num sítio e ignorado no outro.
+  const src = lerIndexHtml();
+  const chamadas = (src.match(/codigoDeArtigoValido\(/g) || []).length;
+  const definicoes = (src.match(/function codigoDeArtigoValido\(/g) || []).length;
+  assert.equal(definicoes, 1, 'só pode haver uma definição da validação');
+  assert.ok(chamadas >= 4, `esperava a validação usada nas duas vias, encontrei ${chamadas} chamada(s)`);
 });
 
 test('o OCR pede as linhas ao Tesseract, não só o texto corrido', () => {
@@ -230,10 +253,12 @@ test('havendo linhas, é por elas que se decide', () => {
 
 test('sem linhas, recorre-se ao texto corrido em vez de desistir', () => {
   // Reserva para uma versão do Tesseract que não devolva as linhas nesta
-  // forma: perde-se a escolha por altura, mas continua a ler as etiquetas
-  // em que a faixa apanha só o número.
-  assert.equal(lerCodigoDaResposta({ text: '4827516' }), '4827516');
-  assert.equal(lerCodigoDaResposta({ text: '4827516', lines: [] }), '4827516');
+  // forma: perde-se a escolha pelo campo, mas continua a ler as etiquetas
+  // em que a faixa apanha só o número. Os 10 dígitos continuam a ser
+  // exigidos — a reserva é mais fraca, não é sem regras.
+  assert.equal(lerCodigoDaResposta({ text: '1260500100' }), '1260500100');
+  assert.equal(lerCodigoDaResposta({ text: '1260500100', lines: [] }), '1260500100');
+  assert.equal(lerCodigoDaResposta({ text: '08189271' }), '', 'sem 10 dígitos, não passa');
 });
 
 test('uma resposta vazia não dá candidato nenhum', () => {
