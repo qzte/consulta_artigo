@@ -2,11 +2,27 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.36.0
+  Consulta de Artigos — v1.37.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.36.0 (atual)
+  v1.37.0 (atual)
+    - feat: modo de diagnóstico no scan, desligado por omissão (botão
+      "Diagnóstico" por baixo do estado). Mostra a faixa exactamente como
+      ela vai para o motor de OCR, o texto cru que ele devolveu linha a
+      linha (com a altura e os dígitos de cada uma), qual foi o candidato
+      escolhido e porquê, o tamanho do fotograma e do recorte, e quanto
+      tempo demorou. Dois botões guardam a faixa e o fotograma inteiro em
+      PNG — o fotograma inteiro serve para se ver se a moldura está
+      apontada ao sítio certo, coisa que a faixa sozinha não mostra
+    - nota: isto existe porque as duas avarias do OCR (v1.35.0 e v1.36.0)
+      foram diagnosticadas a partir de etiquetas inventadas, e a segunda só
+      apareceu porque as inventadas tinham uma linha e as verdadeiras têm
+      três. Da próxima vez que uma etiqueta não ler, dá para ver o que o
+      motor viu em vez de se adivinhar
+    - nota: com o diagnóstico desligado não corre nada disto; o ciclo de
+      leitura fica exactamente como estava
+  v1.36.0
     - fix: o OCR continuava a não ler etiquetas reais depois da v1.35.0.
       Testado com a câmara numa etiqueta a sério: código de barras lia,
       OCR não. A causa era outra, e a v1.35.0 não lhe tocou.
@@ -617,8 +633,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.36.0</title>
-<meta name="description" content="Consulta de Artigos v1.36.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.37.0</title>
+<meta name="description" content="Consulta de Artigos v1.37.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3048,6 +3064,20 @@ var qrcode = function() {
   .scan-candidate { margin-top: 14px; display: none; flex-direction: column; align-items: center; gap: 10px; }
   .scan-candidate-num { font-family: 'Cascadia Code', 'Courier New', monospace; font-size: 24px; font-weight: 700; color: #fff; background: rgba(255,255,255,0.14); padding: 8px 20px; border-radius: 8px; letter-spacing: 1px; }
   .scan-actions { display: flex; gap: 10px; }
+  /* Modo de diagnóstico do scan: desligado por omissão, ligado pelo botão
+     discreto por baixo do estado. Mostra a imagem tal como vai para o
+     motor, o texto cru que ele devolveu e a razão da escolha. */
+  .scan-diag-toggle { margin-top: 10px; background: none; border: 1px solid rgba(255,255,255,0.25); color: rgba(255,255,255,0.6); font: inherit; font-size: 11px; padding: 4px 12px; border-radius: 99px; cursor: pointer; }
+  .scan-diag-toggle:hover { color: #fff; border-color: rgba(255,255,255,0.5); }
+  .scan-diag-toggle.ativo { color: #fff; border-color: var(--blue-txt); background: var(--blue-txt); }
+  .scan-diag { display: none; width: 100%; max-width: 440px; margin-top: 12px; }
+  .scan-diag.aberto { display: block; }
+  .scan-diag canvas { width: 100%; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; background: #fff; display: block; image-rendering: pixelated; }
+  .scan-diag pre { color: #d8d6cf; background: rgba(0,0,0,0.45); border-radius: 4px; font-family: 'Cascadia Code', 'Courier New', monospace; font-size: 10.5px; line-height: 1.45; padding: 8px 10px; margin: 8px 0 0; max-height: 190px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .scan-diag-acoes { display: flex; gap: 8px; margin-top: 8px; }
+  .scan-diag-acoes button { flex: 1; font: inherit; font-size: 11.5px; padding: 7px 10px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.25); background: rgba(255,255,255,0.1); color: #fff; cursor: pointer; }
+  .scan-diag-acoes button:hover { background: rgba(255,255,255,0.2); }
+
   .scan-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 99px; border: none; cursor: pointer; }
   .scan-btn.primary { background: var(--blue-txt); color: #fff; }
   .scan-btn.secondary { background: rgba(255,255,255,0.16); color: #fff; }
@@ -3237,7 +3267,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.36.0</span>
+  <span class="version">v1.37.0</span>
 </header>
 
 <div class="container">
@@ -3333,6 +3363,21 @@ var qrcode = function() {
       <div class="scan-actions">
         <button type="button" class="scan-btn secondary" onclick="continuarScan()">Continuar a tentar</button>
         <button type="button" class="scan-btn primary" onclick="usarCandidato()">Usar este código</button>
+      </div>
+    </div>
+
+    <!-- Modo de diagnóstico: desligado por omissão. Serve para perceber
+         porque é que uma etiqueta não lê, mostrando a imagem que vai para o
+         motor e o que ele devolveu — em vez de se andar a adivinhar a
+         partir de etiquetas inventadas, que foi como as avarias do OCR
+         escaparam até à v1.36.0. -->
+    <button type="button" class="scan-diag-toggle" id="scan-diag-toggle" onclick="alternarDiagnosticoScan()">Diagnóstico</button>
+    <div class="scan-diag" id="scan-diag">
+      <canvas id="scan-diag-canvas"></canvas>
+      <pre id="scan-diag-texto">À espera da primeira leitura…</pre>
+      <div class="scan-diag-acoes">
+        <button type="button" onclick="guardarFotogramaScan('faixa')">Guardar a faixa</button>
+        <button type="button" onclick="guardarFotogramaScan('inteiro')">Guardar o fotograma</button>
       </div>
     </div>
   </div>
@@ -4812,6 +4857,59 @@ function escolherCodigoDasLinhas(linhas, minDigitos = 4) {
     : '';
 }
 
+// ── Diagnóstico do OCR ──────────────────────────────────
+// Estas duas funções não decidem nada: só põem em palavras o que o
+// escolherCodigoDasLinhas acabou de fazer, para o modo de diagnóstico
+// mostrar no ecrã. Existem porque as duas avarias do OCR (v1.35.0 e
+// v1.36.0) foram diagnosticadas às cegas, a partir de etiquetas
+// inventadas — e a segunda só apareceu porque as inventadas tinham uma
+// linha e as verdadeiras têm três. Com isto, quem tem a etiqueta na mão vê
+// o que o motor viu.
+
+// Cada linha lida, com o que dela se aproveita.
+function resumirLinhasOcr(data) {
+  return ((data && data.lines) || []).map(linha => ({
+    texto: String((linha && linha.text) || '').trim(),
+    digitos: extrairDigitos(linha && linha.text),
+    altura: linha && linha.bbox ? Math.round(linha.bbox.y1 - linha.bbox.y0) : 0,
+  }));
+}
+
+// Porque é que saiu (ou não saiu) um candidato desta leitura.
+function explicarEscolhaOcr(data, minDigitos = 4) {
+  const linhas = resumirLinhasOcr(data);
+  if (!linhas.length) {
+    const soTexto = digitosValidos(data && data.text, minDigitos);
+    return {
+      escolhido: soTexto,
+      motivo: soTexto
+        ? 'sem linhas do motor — usado o texto corrido (reserva)'
+        : 'o motor não devolveu texto nenhum nesta imagem',
+    };
+  }
+
+  const validas = linhas.filter(l => l.digitos.length >= minDigitos && l.altura > 0)
+    .sort((a, b) => b.altura - a.altura);
+
+  if (!validas.length) {
+    return { escolhido: '', motivo: `nenhuma linha com ${minDigitos} dígitos ou mais` };
+  }
+  if (validas.length === 1) {
+    return { escolhido: validas[0].digitos, motivo: 'só uma linha com dígitos suficientes' };
+  }
+  const [maior, seguinte] = validas;
+  if (maior.altura >= seguinte.altura * OCR_DOMINANCIA_ALTURA) {
+    return {
+      escolhido: maior.digitos,
+      motivo: `linha mais alta (${maior.altura}px) contra a seguinte (${seguinte.altura}px)`,
+    };
+  }
+  return {
+    escolhido: '',
+    motivo: `ambíguo: a mais alta (${maior.altura}px) não chega a ser ${OCR_DOMINANCIA_ALTURA}x a seguinte (${seguinte.altura}px)`,
+  };
+}
+
 // (B) Calcula, em pixels do vídeo original, o retângulo que corresponde à
 // moldura tracejada mostrada por cima do vídeo — tem de imitar o
 // "object-fit: cover" do CSS (o vídeo é primeiro cortado ao meio para
@@ -5269,6 +5367,81 @@ async function loopCodigoBarras() {
   }
 }
 
+// ── Modo de diagnóstico do scan ─────────────────────────
+// Desligado por omissão; nada disto corre com ele desligado. Ligado, mostra
+// a faixa tal como vai para o motor, o texto cru devolvido e a razão da
+// escolha, e deixa guardar as imagens para se poder analisar uma etiqueta
+// que não lê em vez de imaginar como ela seria.
+let scanDiagAtivo = false;
+
+function alternarDiagnosticoScan() {
+  scanDiagAtivo = !scanDiagAtivo;
+  document.getElementById('scan-diag').classList.toggle('aberto', scanDiagAtivo);
+  document.getElementById('scan-diag-toggle').classList.toggle('ativo', scanDiagAtivo);
+  if (!scanDiagAtivo) return;
+  // Sem motor não há ciclo de OCR a correr, e o painel ficaria calado para
+  // sempre sem se perceber que a causa é essa e não a etiqueta.
+  document.getElementById('scan-diag-texto').textContent = scanWorker
+    ? 'À espera da primeira leitura…'
+    : 'O motor de OCR não foi carregado — só o código de barras está a funcionar. '
+      + 'Costuma ser a rede a bloquear a descarga do motor; liga-te à internet e reabre a câmara.';
+}
+
+// Põe em texto o que aconteceu numa tentativa de OCR.
+function textoDiagnosticoOcr(data, fotograma, video, msDecorridos) {
+  const { escolhido, motivo } = explicarEscolhaOcr(data);
+  const linhas = resumirLinhasOcr(data);
+  const rect = calcularRetanguloRecorte(video.videoWidth, video.videoHeight, SCAN_WRAP_ASPECT, SCAN_FRAME_INSET);
+
+  const partes = [
+    `câmara ${video.videoWidth}x${video.videoHeight} → faixa ${rect.width}x${rect.height} @ ${rect.x},${rect.y}` +
+      ` → enviado ${fotograma.width}x${fotograma.height}  (${msDecorridos} ms)`,
+    '',
+    `escolhido: ${escolhido || '— nada —'}`,
+    `motivo: ${motivo}`,
+    '',
+    `linhas lidas (${linhas.length}):`,
+  ];
+  if (!linhas.length) {
+    partes.push('  (nenhuma)');
+    partes.push(`  texto corrido: ${JSON.stringify(String((data && data.text) || '').trim())}`);
+  } else {
+    linhas.forEach((l, i) => {
+      partes.push(`  ${i + 1}. alt ${String(l.altura).padStart(3)}px  díg ${l.digitos || '—'}  texto ${JSON.stringify(l.texto)}`);
+    });
+  }
+  return partes.join('\n');
+}
+
+// Desenha no painel a MESMA imagem que foi entregue ao motor.
+function mostrarDiagnosticoOcr(data, fotograma, video, msDecorridos) {
+  const alvo = document.getElementById('scan-diag-canvas');
+  alvo.width = fotograma.width;
+  alvo.height = fotograma.height;
+  alvo.getContext('2d').drawImage(fotograma, 0, 0);
+  document.getElementById('scan-diag-texto').textContent =
+    textoDiagnosticoOcr(data, fotograma, video, msDecorridos);
+}
+
+// Guarda em ficheiro a faixa enviada ao OCR, ou o fotograma inteiro. O
+// fotograma inteiro serve para se ver se a moldura está apontada ao sítio
+// certo — coisa que a faixa sozinha não mostra.
+function guardarFotogramaScan(qual) {
+  const video = document.getElementById('scan-video');
+  if (!video.videoWidth) return;
+  const canvas = document.createElement('canvas');
+  if (qual === 'faixa') {
+    prepararFotogramaParaOcr(video, canvas);
+  } else {
+    prepararFotogramaParaCodigoBarras(video, canvas);
+  }
+  const carimbo = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const link = document.createElement('a');
+  link.download = `scan-${qual}-${carimbo}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
 // Tira o código da resposta do Tesseract, preferindo as linhas com caixa
 // (ver escolherCodigoDasLinhas).
 //
@@ -5300,8 +5473,10 @@ async function loopOcr() {
         // O terceiro argumento pede as linhas com as respectivas caixas —
         // sem ele o Tesseract devolve só o texto corrido, e é a ALTURA de
         // cada linha que distingue o código do resto da etiqueta.
+        const inicio = Date.now();
         const { data } = await scanWorker.recognize(fotograma, {}, { blocks: true, text: true });
         if (!scanLoopAtivo) break; // fechado/confirmado enquanto o OCR corria
+        if (scanDiagAtivo) mostrarDiagnosticoOcr(data, fotograma, video, Date.now() - inicio);
         scanEstadoLeitura = processarLeituraConsecutiva(scanEstadoLeitura, lerCodigoDaResposta(data));
         if (scanEstadoLeitura.confirmado && !scanCandidatoAtual) {
           mostrarCandidato(scanEstadoLeitura.ultima);
@@ -5309,6 +5484,11 @@ async function loopOcr() {
       } catch (err) {
         // Falha pontual de leitura (ex: fotograma desfocado) — ignora-se e
         // tenta-se outra vez no próximo ciclo, sem interromper o scan.
+        // Com o diagnóstico ligado o erro aparece, em vez de a leitura
+        // simplesmente não acontecer sem se perceber porquê.
+        if (scanDiagAtivo) {
+          document.getElementById('scan-diag-texto').textContent = 'Erro na leitura: ' + (err && err.message ? err.message : String(err));
+        }
       }
     }
     if (!scanLoopAtivo) break;

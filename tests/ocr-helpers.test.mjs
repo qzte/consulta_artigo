@@ -10,6 +10,8 @@ const {
   digitosValidos,
   escolherCodigoDasLinhas,
   lerCodigoDaResposta,
+  resumirLinhasOcr,
+  explicarEscolhaOcr,
   calcularRetanguloRecorte,
   calcularLimiarOtsu,
   aplicarLimiarPB,
@@ -26,6 +28,8 @@ const {
   'OCR_DOMINANCIA_ALTURA',
   'escolherCodigoDasLinhas',
   'lerCodigoDaResposta',
+  'resumirLinhasOcr',
+  'explicarEscolhaOcr',
   'SCAN_WRAP_ASPECT',
   'SCAN_FRAME_INSET',
   'calcularRetanguloRecorte',
@@ -186,6 +190,59 @@ test('sem linhas, recorre-se ao texto corrido em vez de desistir', () => {
 test('uma resposta vazia não dá candidato nenhum', () => {
   assert.equal(lerCodigoDaResposta({}), '');
   assert.equal(lerCodigoDaResposta(null), '');
+});
+
+// ── diagnóstico ─────────────────────────────────────────
+// Estas funções não decidem nada — só explicam a escolha. O que importa é
+// que a explicação corresponda mesmo ao que foi decidido: um diagnóstico
+// que mente é pior do que não ter diagnóstico nenhum.
+
+test('o resumo traz o texto, os dígitos e a altura de cada linha', () => {
+  const resumo = resumirLinhasOcr({ lines: [linha(' 4827516 ', 65), linha('10 10', 20)] });
+  assert.equal(resumo.length, 2);
+  assert.deepEqual(resumo[0], { texto: '4827516', digitos: '4827516', altura: 65 });
+  assert.deepEqual(resumo[1], { texto: '10 10', digitos: '1010', altura: 20 });
+});
+
+test('o resumo aguenta linhas mal formadas sem rebentar', () => {
+  assert.deepEqual(resumirLinhasOcr({}), []);
+  assert.deepEqual(resumirLinhasOcr(null), []);
+  assert.doesNotThrow(() => resumirLinhasOcr({ lines: [null, {}, { text: 'x' }] }));
+});
+
+test('a explicação da escolha diz o mesmo que a escolha', () => {
+  // A garantia que interessa: o que o painel mostra é o que a app usou.
+  const casos = [
+    { lines: [linha('1010', 20), linha('4827516', 65), linha('12', 20)] },
+    { lines: [linha('20240115998', 20), linha('4821', 65)] },
+    { lines: [linha('4827516', 60), linha('1234567', 58)] },
+    { lines: [linha('12', 65), linha('7', 20)] },
+    { lines: [linha('4827516', 65)] },
+    { lines: [] , text: '4827516' },
+    {},
+  ];
+  for (const data of casos) {
+    assert.equal(
+      explicarEscolhaOcr(data).escolhido,
+      lerCodigoDaResposta(data),
+      `a explicação divergiu da decisão em ${JSON.stringify(data)}`
+    );
+  }
+});
+
+test('cada situação tem o seu motivo, e nunca vem vazio', () => {
+  const motivo = data => explicarEscolhaOcr(data).motivo;
+  assert.match(motivo({ lines: [linha('1010', 20), linha('4827516', 65)] }), /mais alta/);
+  assert.match(motivo({ lines: [linha('4827516', 60), linha('1234567', 58)] }), /ambíguo/);
+  assert.match(motivo({ lines: [linha('12', 65)] }), /nenhuma linha/);
+  assert.match(motivo({ lines: [linha('4827516', 65)] }), /só uma linha/);
+  assert.match(motivo({ text: '4827516' }), /texto corrido/);
+  assert.match(motivo({}), /não devolveu texto/);
+});
+
+test('o motivo do caso ambíguo mostra as duas alturas', () => {
+  // Sem os números, o painel diz "ambíguo" e deixa quem lê na mesma.
+  assert.match(explicarEscolhaOcr({ lines: [linha('4827516', 60), linha('1234567', 58)] }).motivo, /60px.*58px/);
 });
 
 // ── calcularRetanguloRecorte ────────────────────────────
