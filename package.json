@@ -5,7 +5,7 @@
   "description": "Consulta de armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo. App de página única, sem build.",
   "type": "module",
   "scripts": {
-    "test": "node --test \"tests/*.test.mjs\""
+    "test": "node tests/verificar-sintaxe.mjs && node --test tests/*.test.mjs"
   },
   "engines": {
     "node": ">=20"

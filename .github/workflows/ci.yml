@@ -2,8 +2,8 @@ name: CI
 
 # A app é um único HTML servido pelo GitHub Pages, sem build nem
 # dependências. Os testes usam só o test runner que vem com o Node, por isso
-# não há "npm install" nenhum a fazer aqui — e não há um package-lock.json
-# para manter.
+# não há "npm install" nenhum a fazer aqui — e não há package-lock.json para
+# manter.
 on:
   push:
     branches: [main]
@@ -15,31 +15,29 @@ permissions:
 
 jobs:
   testes:
-    name: Testes
+    name: Testes (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # A versão mais baixa que o package.json diz suportar, e uma actual.
+        # Correr as duas não é zelo a mais: a primeira versão deste workflow
+        # passava o glob dos testes entre aspas, à espera que fosse o Node a
+        # expandi-lo — coisa que só existe a partir do 22. Passava no
+        # portátil e falhava no CI, e seria ao contrário com a mesma
+        # facilidade.
+        node: ['20', '22']
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
 
+      # Verifica a sintaxe do <script> do index.html e do sw.js, e depois
+      # corre os testes. A verificação de sintaxe vem primeiro de propósito:
+      # os testes extraem do index.html só as funções de que precisam, por
+      # isso um erro de sintaxe noutro ponto qualquer passava-lhes ao lado —
+      # e o sintoma em produção é a app abrir em branco.
       - name: Correr os testes
         run: npm test
-
-  # O index.html é o ficheiro que vai para o ar. Se tiver um erro de sintaxe
-  # no <script>, a app abre em branco e nenhum teste de função pura dá por
-  # isso — eles extraem só as funções de que precisam e não olham para o
-  # resto do ficheiro.
-  sintaxe:
-    name: Sintaxe do index.html
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Verificar o <script> do index.html
-        run: node tests/verificar-sintaxe.mjs

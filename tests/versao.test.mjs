@@ -65,6 +65,11 @@ test('o CACHE_NAME do service worker acompanha a versão', () => {
   );
 });
 
+test('a versão do package.json acompanha a do index.html', () => {
+  const pkg = JSON.parse(lerFicheiro('package.json'));
+  assert.equal(pkg.version, VERSAO, 'o package.json ficou numa versão anterior');
+});
+
 test('existe uma só cópia versionada, e é a da versão actual', () => {
   const copias = readdirSync(caminhoRaiz).filter(f => /^consulta_artigos_v.*\.html$/.test(f));
   assert.deepEqual(copias, [`consulta_artigos_v${VERSAO}.html`],

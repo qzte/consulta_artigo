@@ -1,14 +1,15 @@
 # Testes
 
 ```sh
-npm test                        # todos os testes
+npm test                                 # sintaxe + todos os testes
 node --test tests/ocr-helpers.test.mjs   # um ficheiro só
 node tests/verificar-sintaxe.mjs         # só a verificação de sintaxe
 ```
 
 Não há nada a instalar: a app não tem dependências e os testes usam só o
 test runner que já vem com o Node (>= 20). O CI (`.github/workflows/ci.yml`)
-corre o mesmo em cada push e pull request.
+corre o mesmo em cada push e pull request, em Node 20 e 22 — o 20 por ser
+a versão mais baixa que o `package.json` diz suportar.
 
 ## Como estão montados
 
@@ -39,10 +40,11 @@ falta em vez de deixar o teste passar sobre o vazio.
 | `verificar-sintaxe.mjs` | O `<script>` do `index.html` e o `sw.js` compilam |
 
 O `versao.test.mjs` existe porque publicar uma versão significa mexer à mão em
-sete sítios (cabeçalho, changelog, `<title>`, meta description, rodapé, nome
-da cópia versionada e `CACHE_NAME` do `sw.js`). Esquecer um não parte nada de
-forma visível — no pior caso, o do `CACHE_NAME`, quem tem a app instalada fica
-preso à versão antiga e a correcção nunca lhe chega.
+oito sítios (cabeçalho, changelog, `<title>`, meta description, rodapé, nome
+da cópia versionada, versão do `package.json` e `CACHE_NAME` do `sw.js`).
+Esquecer um não parte nada de forma visível — no pior caso, o do
+`CACHE_NAME`, quem tem a app instalada fica preso à versão antiga e a
+correcção nunca lhe chega.
 
 ## O que **não** está coberto
 
