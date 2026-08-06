@@ -21,6 +21,20 @@
       fixo, uma etiqueta na sombra não devolvia número nenhum; com o Otsu
       (limiar calculado: 62 na sombra, 135 com luz normal, 157 sob o foco)
       o código foi lido correctamente nas três
+    - test: o repositório passa a ter testes automatizados e CI (GitHub
+      Actions), que correm em cada push e pull request. Os ficheiros de
+      teste referidos nos comentários deste ficheiro desde a v1.18.0 nunca
+      tinham chegado a existir
+    - test: os testes correm contra o index.html PUBLICADO — extraem dele as
+      funções pela via do tests/harness.mjs, em vez de trabalharem sobre uma
+      cópia. A prática antiga ("testado isoladamente antes de ser copiado
+      para aqui") é precisamente o que deixou passar a avaria acima: a
+      função do limiar estava certa, quem a chamava é que a anulava. Os
+      comentários que descreviam essa prática foram corrigidos
+    - test: há também verificação de coerência da versão (título, meta,
+      rodapé, changelog, cópia versionada e CACHE_NAME do service worker) e
+      de sintaxe do script. Um CACHE_NAME esquecido deixa quem tem a app
+      instalada preso à versão antiga, sem sinal nenhum de que isso aconteceu
   v1.34.0
     - feat: a descrição passa a USAR TODO o espaço da sua coluna. Na v1.33.0
       a letra era de 10px e só encolhia, por isso os nomes curtos saíam
@@ -3516,8 +3530,7 @@ function aggregateCaixas(rows) {
 // Quantidade Total — mesma lógica de aggregateCaixas, mas agrupada por
 // Serviço em vez de Supermercado. Usada para o índice de Serviço poder
 // mostrar só as caixas desse serviço, em vez de todas as do artigo.
-// Testado isoladamente em caixas-por-servico.test.mjs antes de ser copiada
-// para aqui.
+// Testado em caixas-por-servico.test.mjs.
 function aggregateCaixasPorServico(rows) {
   const byKey = new Map();
   for (const r of rows) {
@@ -3531,7 +3544,7 @@ function aggregateCaixasPorServico(rows) {
 
 // Filtra a lista já agregada por serviço (aggregateCaixasPorServico),
 // devolvendo só as caixas cujo Serviço, na linha de origem, é o pedido.
-// Testado isoladamente em caixas-por-servico.test.mjs.
+// Testado em caixas-por-servico.test.mjs.
 function caixasDoServico(caixasAgregadas, servNome) {
   return caixasAgregadas.filter(c => c.servNome === servNome);
 }
@@ -3618,8 +3631,7 @@ function processArmFile(headers, rows, fname) {
 }
 
 // ── Etiqueta: regras de negócio (funções puras) ─────────
-// Testadas isoladamente em etiqueta.test.mjs e integracao-etiqueta.test.mjs
-// antes de serem copiadas para aqui.
+// Testadas em etiqueta.test.mjs.
 //
 // Cor de fundo do código+descrição, por regra de negócio. A ORDEM importa:
 // "a pedido" (rosa) é o caso mais específico e é testado ANTES de amarelo —
@@ -4719,8 +4731,8 @@ function clearSearch() {
 //     leitura sair 2 vezes seguidas.
 
 // Letras que o OCR troca frequentemente por dígitos parecidos, aplicado
-// antes de descartar tudo o que não é dígito. Testado isoladamente em
-// ocr-helpers.test.mjs antes de ser copiado para aqui.
+// antes de descartar tudo o que não é dígito. Testado em
+// ocr-helpers.test.mjs.
 const OCR_CONFUSOES = { O: '0', o: '0', I: '1', l: '1', S: '5', s: '5', B: '8' };
 
 function extrairDigitos(textoOcr) {
@@ -4739,7 +4751,7 @@ function digitosValidos(textoOcr, minDigitos = 4) {
 // moldura tracejada mostrada por cima do vídeo — tem de imitar o
 // "object-fit: cover" do CSS (o vídeo é primeiro cortado ao meio para
 // caber no rácio do .scan-video-wrap, e só depois se aplica a % da
-// moldura). Testado isoladamente em ocr-helpers.test.mjs.
+// moldura). Testado em ocr-helpers.test.mjs.
 const SCAN_WRAP_ASPECT = 3 / 4; // igual ao aspect-ratio do .scan-video-wrap no CSS
 const SCAN_FRAME_INSET = { top: 0.40, bottom: 0.40, left: 0.08, right: 0.08 }; // igual ao .scan-frame-hint
 
@@ -4771,7 +4783,7 @@ function calcularRetanguloRecorte(videoWidth, videoHeight, wrapAspect, inset) {
 // etiqueta bem iluminada: à luz do armazém, uma etiqueta na sombra ficava
 // toda preta e uma debaixo do foco ficava toda branca — em qualquer dos
 // casos o OCR recebia uma imagem sem nada para ler e nunca devolvia
-// número nenhum. Testado isoladamente em ocr-helpers.test.mjs.
+// número nenhum. Testado em ocr-helpers.test.mjs.
 function calcularLimiarOtsu(data) {
   const histograma = new Array(256).fill(0);
   let totalPixeis = 0;
@@ -4815,7 +4827,7 @@ function calcularLimiarOtsu(data) {
 // (B) Converte a preto e branco "puro" (threshold), para ajudar o OCR a
 // distinguir melhor os traços do número do fundo da etiqueta. Sem limiar
 // explícito, calcula-o a partir da própria imagem (ver calcularLimiarOtsu).
-// Testado isoladamente em ocr-helpers.test.mjs.
+// Testado em ocr-helpers.test.mjs.
 function aplicarLimiarPB(data, limiar = calcularLimiarOtsu(data)) {
   for (let i = 0; i < data.length; i += 4) {
     const cinza = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
@@ -4833,7 +4845,7 @@ const SCAN_AMPLIACAO = 2;
 
 // (C) Só confirma um candidato depois de a mesma leitura aparecer 2 vezes
 // seguidas — reduz o risco de mostrar um número errado por uma leitura
-// pontual mal feita. Testado isoladamente em ocr-helpers.test.mjs.
+// pontual mal feita. Testado em ocr-helpers.test.mjs.
 function processarLeituraConsecutiva(estadoAnterior, novaLeitura) {
   if (!novaLeitura) return { ultima: '', count: 0, confirmado: false };
   if (novaLeitura === estadoAnterior.ultima) {
@@ -5215,8 +5227,8 @@ async function loopOcr() {
 
 // Ordena uma lista de supermercados pelo nome, por ordem alfabética
 // (localeCompare 'pt' — ignora maiúsculas/minúsculas e acentos). Devolve
-// uma cópia nova, sem alterar o array recebido. Testado isoladamente em
-// sort-supermercados.test.mjs antes de ser copiado para aqui. Usada na
+// uma cópia nova, sem alterar o array recebido. Testado em
+// sort-supermercados.test.mjs. Usada na
 // ficha de artigo (secção "Supermercados") para ordenar os badges dentro
 // de cada grupo HPH/ACES/Outro.
 function ordenarSupermercadosAlfabeticamente(lista) {
