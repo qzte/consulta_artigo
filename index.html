@@ -2,11 +2,26 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.34.0
+  Consulta de Artigos — v1.35.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.34.0 (atual)
+  v1.35.0 (atual)
+    - fix: a leitura do código por OCR continuava a não funcionar em boa
+      parte das etiquetas, apesar de a v1.28.0 anunciar o contrário. Nessa
+      versão o limiar de preto-e-branco passou a ser calculado a partir da
+      própria imagem (método de Otsu), mas só na ASSINATURA da função
+      (aplicarLimiarPB) — quem a chamava, o prepararFotogramaParaOcr,
+      continuou a passar-lhe o 150 fixo de antes, que sobrepõe o valor por
+      omissão. Resultado: o cálculo de Otsu nunca chegou a correr uma única
+      vez e o defeito descrito na v1.28.0 manteve-se inteiro. A chamada
+      passa a não passar limiar nenhum
+    - nota: medido com o mesmo motor (Tesseract 5.1.1, dígitos em linha
+      única) sobre etiquetas geradas em três condições de luz. Com o 150
+      fixo, uma etiqueta na sombra não devolvia número nenhum; com o Otsu
+      (limiar calculado: 62 na sombra, 135 com luz normal, 157 sob o foco)
+      o código foi lido correctamente nas três
+  v1.34.0
     - feat: a descrição passa a USAR TODO o espaço da sua coluna. Na v1.33.0
       a letra era de 10px e só encolhia, por isso os nomes curtos saíam
       pequenos com a célula meia vazia. Agora procura-se o MAIOR tamanho que
@@ -560,8 +575,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.34.0</title>
-<meta name="description" content="Consulta de Artigos v1.34.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.35.0</title>
+<meta name="description" content="Consulta de Artigos v1.35.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3180,7 +3195,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.34.0</span>
+  <span class="version">v1.35.0</span>
 </header>
 
 <div class="container">
@@ -5089,7 +5104,11 @@ function prepararFotogramaParaOcr(video, canvas) {
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, rect.x, rect.y, rect.width, rect.height, 0, 0, canvas.width, canvas.height);
   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  aplicarLimiarPB(imgData.data, 150);
+  // SEM segundo argumento de propósito: assim aplicarLimiarPB usa o limiar
+  // calculado a partir da própria imagem (Otsu). Passar aqui um número fixo
+  // — como o 150 que ficou cá até à v1.34.0 — anula o cálculo por completo
+  // e é exatamente a avaria que o Otsu foi escrito para resolver.
+  aplicarLimiarPB(imgData.data);
   ctx.putImageData(imgData, 0, 0);
   return canvas;
 }
