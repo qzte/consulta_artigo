@@ -2,11 +2,19 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.39.0
+  Consulta de Artigos — v1.40.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.39.0 (atual)
+  v1.40.0 (atual)
+    - change: índice "Supermercados / Serviços", ficha de Supermercado — a
+      coluna "Caixa / Quantidade" passa a "Cx / Nº Cx / QT Cx" e mostra Tipo
+      de Caixa / Nº de Caixas / Quantidade por Caixa (antes só mostrava Tipo
+      de Caixa e Quantidade Total). A ficha de Serviço não é afetada
+    - change: índice "Supermercados / Serviços", ficha de Supermercado — a
+      coluna "Posição no supermercado" passa a "Posição". A ficha de Serviço
+      mantém "Posição no serviço"
+  v1.39.0
     - confirmado em etiqueta real: a leitura por OCR da v1.38.0 funciona
     - fix: o código de barras passa a exigir a mesma forma que o OCR — uma
       sequência de exactamente 10 dígitos, que é o formato do código de
@@ -679,8 +687,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.39.0</title>
-<meta name="description" content="Consulta de Artigos v1.39.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.40.0</title>
+<meta name="description" content="Consulta de Artigos v1.40.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3313,7 +3321,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.39.0</span>
+  <span class="version">v1.40.0</span>
 </header>
 
 <div class="container">
@@ -5649,7 +5657,7 @@ function dimensaoBadgeOuFiltro(dim, label, artigos) {
 function renderSuperGroupCard(entry, tipo) {
   const isSuper = tipo === 'supermercado';
   const labelTipo = isSuper ? 'Supermercado' : 'Serviço';
-  const posLabel = isSuper ? 'Posição no supermercado' : 'Posição no serviço';
+  const posLabel = isSuper ? 'Posição' : 'Posição no serviço';
 
   // Local (HPH/ACES) e Área tratados da mesma forma nos dois índices: se
   // os artigos da ficha só têm um valor distinto, mostra-se como badge
@@ -5674,7 +5682,7 @@ function renderSuperGroupCard(entry, tipo) {
       const caixasHtml = art.caixas.length
         ? art.caixas.slice()
             .sort((a, b) => a.tipoCx.localeCompare(b.tipoCx, 'pt'))
-            .map(c => `<span class="badge-total" title="${escHtml(c.tipoCx)}">${escHtml(c.tipoCx)}: ${escHtml(c.qtdTotal || 0)}</span>`)
+            .map(c => `<span class="badge-total" title="Tipo de caixa: ${escHtml(c.tipoCx)} · Nº Caixas: ${escHtml(c.nrCx || 0)} · Quantidade por Caixa: ${escHtml(c.qtdCx || 0)}">${escHtml(c.tipoCx)} / ${escHtml(c.nrCx || 0)} / ${escHtml(c.qtdCx || 0)}</span>`)
             .join(' ')
         : '<span class="no-data">—</span>';
       const posHtml = art.posicaoTexto
@@ -5707,7 +5715,7 @@ function renderSuperGroupCard(entry, tipo) {
             ${isSuper ? '<th class="etq-lote-td" title="Marcar artigos para emitir etiquetas">🏷</th>' : ''}
             <th class="sortable" onclick="setIndexSort('cod')">Código${sortArrowHtml('cod')}</th>
             <th class="sortable" onclick="setIndexSort('artigo')">Artigo${sortArrowHtml('artigo')}</th>
-            <th>Caixa / Quantidade</th>
+            <th>Cx / Nº Cx / QT Cx</th>
             <th class="sortable" onclick="setIndexSort('posicao')">${escHtml(posLabel)}${sortArrowHtml('posicao')}</th>
           </tr></thead>
           <tbody>${linhas}</tbody>
