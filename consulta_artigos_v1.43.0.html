@@ -2,11 +2,18 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.42.0
+  Consulta de Artigos — v1.43.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.42.0 (atual)
+  v1.43.0 (atual)
+    - feat: índice "Supermercados / Serviços", ficha de Serviço — o artigo
+      que estiver selecionado na tab "Artigos" (pesquisa com um único
+      resultado) passa a aparecer destacado no topo da tabela do serviço,
+      com fundo sombreado, para se distinguir dos outros artigos. Limpar a
+      pesquisa da tab Artigos remove o destaque. A ficha de Supermercado não
+      é afetada
+  v1.42.0
     - bump de versão, sem alterações funcionais
   v1.41.0
     - feat: ficha de artigo, secção "Caixas por supermercado" — clicar numa
@@ -695,8 +702,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.42.0</title>
-<meta name="description" content="Consulta de Artigos v1.42.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.43.0</title>
+<meta name="description" content="Consulta de Artigos v1.43.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3207,6 +3214,7 @@ var qrcode = function() {
   table.cx td.muted { color: var(--text2); }
   table.cx th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
   table.cx th.sortable:hover { color: var(--text); }
+  table.cx tr.tr-destaque td { background: var(--blue-bg); }
 
   /* ÁREA (filtro na ficha de Serviço) */
   .sgc-header-main { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
@@ -3338,7 +3346,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.42.0</span>
+  <span class="version">v1.43.0</span>
 </header>
 
 <div class="container">
@@ -4164,6 +4172,21 @@ function matchArtigo(cod, q) {
   return norm.codNorm.includes(q) || norm.nomeNorm.includes(q);
 }
 
+// Código do artigo que está selecionado neste momento na tab "Artigos", ou
+// null se não houver nenhum. Lê sempre a caixa de texto dessa tab, mesmo
+// estando a pessoa a ver a tab "Supermercados / Serviços" — é o que permite
+// à ficha de Serviço destacar esse artigo (ver renderSuperGroupCard). Só
+// conta como "selecionado" quando a pesquisa da tab Artigos encontra
+// exatamente um artigo; com zero ou vários resultados não há um artigo só
+// para destacar.
+function artigoDestacadoCod() {
+  const raw = document.getElementById('search-input-artigo').value.trim();
+  const q = normaliza(raw);
+  if (q.length < MIN_CHARS) return null;
+  const encontrados = garantirIndicePesquisa().cods.filter(cod => matchArtigo(cod, q));
+  return encontrados.length === 1 ? encontrados[0] : null;
+}
+
 // Constrói o índice de supermercados que batem com a pesquisa. Cada
 // supermercado encontrado agrupa todos os artigos que lá existem, com o
 // respetivo tipo de caixa + quantidade (já é a Quantidade Total máxima
@@ -4233,6 +4256,22 @@ function compareIndexArtigos(a, b) {
   else /* 'artigo' */                      { va = a.nome;          vb = b.nome; }
   const cmp = String(va || '').localeCompare(String(vb || ''), 'pt', { numeric: true, sensitivity: 'base' });
   return indexSortDir === 'asc' ? cmp : -cmp;
+}
+
+// Põe, se existir na lista, o artigo indicado em primeiro lugar — usado
+// pela ficha de Serviço para destacar no topo o artigo selecionado na tab
+// "Artigos" (ver artigoDestacadoCod), independentemente da ordenação
+// escolhida (compareIndexArtigos). Sem esse artigo, ou já em primeiro
+// lugar, devolve a lista tal como veio. Não mexe na lista recebida.
+// Testado em destaque-servico.test.mjs.
+function destacarArtigoNaLista(artigos, cod) {
+  if (!cod) return artigos;
+  const i = artigos.findIndex(a => a.cod === cod);
+  if (i <= 0) return artigos;
+  const copia = artigos.slice();
+  const [destaque] = copia.splice(i, 1);
+  copia.unshift(destaque);
+  return copia;
 }
 
 function sortArrowHtml(field) {
@@ -5692,9 +5731,14 @@ function renderSuperGroupCard(entry, tipo) {
     etqLoteEntryAtual = entry;
   }
 
-  const linhas = entry.artigos
-    .slice()
-    .sort(compareIndexArtigos)
+  // Na ficha de Serviço (não na de Supermercado), o artigo que estiver
+  // selecionado na tab "Artigos" é destacado no topo da tabela, com fundo
+  // sombreado — ajuda a encontrá-lo entre os outros artigos do serviço.
+  // Limpar a pesquisa da tab Artigos faz artigoDestacadoCod voltar a null,
+  // e a próxima vez que se vir esta ficha já não há destaque nenhum.
+  const artigoDestaqueCod = isSuper ? null : artigoDestacadoCod();
+
+  const linhas = destacarArtigoNaLista(entry.artigos.slice().sort(compareIndexArtigos), artigoDestaqueCod)
     .map(art => {
       const caixasHtml = art.caixas.length
         ? art.caixas.slice()
@@ -5708,7 +5752,8 @@ function renderSuperGroupCard(entry, tipo) {
       const cbHtml = isSuper
         ? `<td class="etq-lote-td"><input type="checkbox" class="etq-lote-cb" data-cod="${escHtml(art.cod)}"${etqLoteSel.has(art.cod) ? ' checked' : ''} onchange="toggleEtqLote(this)" title="Marcar para emitir etiqueta"></td>`
         : '';
-      return `<tr data-area="${escHtml(art.area || '')}" data-grupo="${escHtml(art.grupo || '')}">
+      const classeDestaque = art.cod === artigoDestaqueCod ? ' class="tr-destaque"' : '';
+      return `<tr${classeDestaque} data-area="${escHtml(art.area || '')}" data-grupo="${escHtml(art.grupo || '')}">
         ${cbHtml}<td class="mono"><button type="button" class="cod-link" data-cod="${escHtml(art.cod)}" onclick="irParaArtigoNoIndice(this.dataset.cod)" title="Ver ficha deste artigo">${escHtml(art.cod)}</button></td>
         <td>${escHtml(art.nome || '—')}</td>
         <td>${caixasHtml}</td>
