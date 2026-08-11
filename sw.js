@@ -26,7 +26,7 @@
 // antigos indefinidamente, mesmo com o index.html novo. O activate apaga as
 // caches com nome diferente deste, e é aí que as cópias antigas
 // desaparecem do dispositivo.
-const CACHE_NAME = 'consulta-artigos-v1.40.0';
+const CACHE_NAME = 'consulta-artigos-v1.41.0';
 
 // Página a servir offline quando a rede falha numa navegação.
 const OFFLINE_URL = './index.html';
