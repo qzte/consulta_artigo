@@ -2,11 +2,19 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.40.0
+  Consulta de Artigos — v1.42.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.40.0 (atual)
+  v1.42.0 (atual)
+    - bump de versão, sem alterações funcionais
+  v1.41.0
+    - feat: ficha de artigo, secção "Caixas por supermercado" — clicar numa
+      quantidade filtra a secção "Supermercados" logo abaixo, mostrando só
+      os supermercados que têm o artigo nessa caixa (mesmo grupo HPH/ACES +
+      tipo de caixa + quantidade). A secção "Supermercados" ganha um botão
+      "Limpar filtro" para voltar a ver todos
+  v1.40.0
     - change: índice "Supermercados / Serviços", ficha de Supermercado — a
       coluna "Caixa / Quantidade" passa a "Cx / Nº Cx / QT Cx" e mostra Tipo
       de Caixa / Nº de Caixas / Quantidade por Caixa (antes só mostrava Tipo
@@ -687,8 +695,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.40.0</title>
-<meta name="description" content="Consulta de Artigos v1.40.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.42.0</title>
+<meta name="description" content="Consulta de Artigos v1.42.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3207,6 +3215,9 @@ var qrcode = function() {
   .area-btn:hover { color: var(--text); border-color: var(--text3); }
   .area-btn.active { background: var(--blue-bg); color: var(--blue-txt); border-color: var(--blue-txt); }
   .badge-total { background: var(--blue-bg); color: var(--blue-txt); font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; font-family: 'Cascadia Code', 'Courier New', monospace; }
+  .badge-total-btn { border: none; cursor: pointer; transition: background 0.15s, color 0.15s; }
+  .badge-total-btn:hover { background: #cfe0f8; }
+  .badge-total-btn.active { background: var(--blue-txt); color: #fff; }
 
   /* CAIXAS POR GRUPO (HPH / ACES) */
   .cxgrp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
@@ -3215,6 +3226,12 @@ var qrcode = function() {
   .cxgrp-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--border); }
   .cxgrp-row:last-child { border-bottom: none; }
   .cxgrp-tipo { font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; font-size: 13px; color: var(--text); }
+
+  /* FILTRO DE SUPERMERCADOS POR CAIXA (clique na quantidade em "Caixas por
+     supermercado") */
+  .sf-count { font-size: 11px; font-weight: 600; color: var(--blue-txt); text-transform: none; letter-spacing: normal; }
+  .sf-clear-btn { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); font: inherit; font-size: 11px; font-weight: 600; text-transform: none; letter-spacing: normal; padding: 3px 10px; border-radius: 99px; cursor: pointer; margin-left: auto; transition: background 0.15s, color 0.15s, border-color 0.15s; }
+  .sf-clear-btn:hover { color: var(--text); border-color: var(--text3); background: var(--surface); }
 
   /* EMPTY */
   .no-data { color: var(--text3); font-size: 13px; font-style: italic; }
@@ -3321,7 +3338,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.40.0</span>
+  <span class="version">v1.42.0</span>
 </header>
 
 <div class="container">
@@ -5726,6 +5743,64 @@ function renderSuperGroupCard(entry, tipo) {
   </div>`;
 }
 
+// Clique numa quantidade da secção "Caixas por supermercado" (renderCard):
+// filtra a secção "Supermercados" da mesma ficha, mostrando só os
+// supermercados que têm o artigo nessa caixa (mesmo grupo HPH/ACES + tipo de
+// caixa + quantidade por caixa). Clicar de novo na mesma quantidade, ou no
+// botão "Limpar filtro", repõe todos os supermercados da ficha.
+// Feito por manipulação directa do DOM (como toggleFiltro/aplicarFiltros,
+// acima), sem voltar a chamar renderCard — a ficha já está no ecrã.
+function filtrarSupermercadosPorCaixa(btn) {
+  const card = btn.closest('.artigo-card');
+  const jaAtivo = btn.classList.contains('active');
+  card.querySelectorAll('.badge-total-btn').forEach(b => b.classList.remove('active'));
+
+  if (jaAtivo) { limparFiltroSupermercadosCard(card); return; }
+  btn.classList.add('active');
+
+  const grupo = btn.dataset.grupo, tipo = btn.dataset.tipo;
+  const valor = Number(btn.dataset.valor) || 0;
+  const s = superMap[card.dataset.cod] || { caixas: [], supermercados: [] };
+  const permitidos = new Set(
+    s.caixas
+      .filter(c => c.grupo === grupo && c.tipoCx === tipo && (Number(c.qtdCx) || 0) === valor)
+      .map(c => c.superNome)
+  );
+
+  let visiveis = 0;
+  card.querySelectorAll('.super-tag-btn').forEach(tag => {
+    const ok = permitidos.has(tag.dataset.nome);
+    tag.style.display = ok ? '' : 'none';
+    if (ok) visiveis++;
+  });
+  card.querySelectorAll('.super-group').forEach(grp => {
+    const algumVisivel = [...grp.querySelectorAll('.super-tag-btn')].some(t => t.style.display !== 'none');
+    grp.style.display = algumVisivel ? '' : 'none';
+  });
+
+  const clearBtn = card.querySelector('.sf-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'inline-flex';
+  const countEl = card.querySelector('.sf-count');
+  if (countEl) {
+    countEl.textContent = `${visiveis} de ${s.supermercados.length}`;
+    countEl.style.display = '';
+  }
+  const emptyEl = card.querySelector('.sf-empty');
+  if (emptyEl) emptyEl.style.display = visiveis ? 'none' : 'block';
+}
+
+function limparFiltroSupermercadosCard(card) {
+  card.querySelectorAll('.badge-total-btn').forEach(b => b.classList.remove('active'));
+  card.querySelectorAll('.super-tag-btn').forEach(tag => { tag.style.display = ''; });
+  card.querySelectorAll('.super-group').forEach(grp => { grp.style.display = ''; });
+  const clearBtn = card.querySelector('.sf-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
+  const countEl = card.querySelector('.sf-count');
+  if (countEl) countEl.style.display = 'none';
+  const emptyEl = card.querySelector('.sf-empty');
+  if (emptyEl) emptyEl.style.display = 'none';
+}
+
 function renderCard(cod) {
   const s    = superMap[cod] || { supermercados: [], caixas: [] };
   const a    = armMap[cod]   || { posicoes: [] };
@@ -5773,7 +5848,7 @@ function renderCard(cod) {
           ${porGrupo[g].map(t => `
             <div class="cxgrp-row">
               <span class="cxgrp-tipo">${escHtml(t.tipo)}</span>
-              <span class="badge-total">${escHtml(t.max)}</span>
+              <button type="button" class="badge-total badge-total-btn" data-grupo="${escHtml(g)}" data-tipo="${escHtml(t.tipo)}" data-valor="${escHtml(t.max)}" onclick="filtrarSupermercadosPorCaixa(this)" title="Filtrar supermercados com esta caixa">${escHtml(t.max)}</button>
             </div>`).join('')}
         </div>`).join('');
     cxHTML = `
@@ -5828,7 +5903,7 @@ function renderCard(cod) {
       <hr class="divider">`;
   }
 
-  return `<div class="artigo-card">
+  return `<div class="artigo-card" data-cod="${escHtml(cod)}">
     <div class="artigo-card-header">
       <span class="cod-pill">${escHtml(cod)}</span>
       <span class="artigo-nome">${escHtml(nome || '—')}</span>
@@ -5840,8 +5915,11 @@ function renderCard(cod) {
         <div class="sec-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
           Supermercados
+          <span class="sf-count" style="display:none"></span>
+          <button type="button" class="sf-clear-btn" style="display:none" onclick="limparFiltroSupermercadosCard(this.closest('.artigo-card'))">✕ Limpar filtro</button>
         </div>
         ${superHTML}
+        <div class="sf-empty no-data" style="display:none">Nenhum supermercado corresponde à quantidade selecionada.</div>
       </div>
     </div>
   </div>`;
