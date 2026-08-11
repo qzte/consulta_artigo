@@ -1,6 +1,6 @@
 {
   "name": "consulta-artigos",
-  "version": "1.43.0",
+  "version": "1.44.0",
   "private": true,
   "description": "Consulta de armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo. App de página única, sem build.",
   "type": "module",

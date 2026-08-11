@@ -2,11 +2,15 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.43.0
+  Consulta de Artigos — v1.44.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.43.0 (atual)
+  v1.44.0 (atual)
+    - change: destaque do artigo selecionado (introduzido na v1.43.0) passa
+      a aparecer também na ficha de Supermercado, não só na de Serviço — as
+      duas fichas do índice "Supermercados / Serviços" ficam simétricas
+  v1.43.0
     - feat: índice "Supermercados / Serviços", ficha de Serviço — o artigo
       que estiver selecionado na tab "Artigos" (pesquisa com um único
       resultado) passa a aparecer destacado no topo da tabela do serviço,
@@ -702,8 +706,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.43.0</title>
-<meta name="description" content="Consulta de Artigos v1.43.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.44.0</title>
+<meta name="description" content="Consulta de Artigos v1.44.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3346,7 +3350,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.43.0</span>
+  <span class="version">v1.44.0</span>
 </header>
 
 <div class="container">
@@ -4175,10 +4179,10 @@ function matchArtigo(cod, q) {
 // Código do artigo que está selecionado neste momento na tab "Artigos", ou
 // null se não houver nenhum. Lê sempre a caixa de texto dessa tab, mesmo
 // estando a pessoa a ver a tab "Supermercados / Serviços" — é o que permite
-// à ficha de Serviço destacar esse artigo (ver renderSuperGroupCard). Só
-// conta como "selecionado" quando a pesquisa da tab Artigos encontra
-// exatamente um artigo; com zero ou vários resultados não há um artigo só
-// para destacar.
+// à ficha de Supermercado ou de Serviço destacar esse artigo (ver
+// renderSuperGroupCard). Só conta como "selecionado" quando a pesquisa da
+// tab Artigos encontra exatamente um artigo; com zero ou vários resultados
+// não há um artigo só para destacar.
 function artigoDestacadoCod() {
   const raw = document.getElementById('search-input-artigo').value.trim();
   const q = normaliza(raw);
@@ -4259,10 +4263,10 @@ function compareIndexArtigos(a, b) {
 }
 
 // Põe, se existir na lista, o artigo indicado em primeiro lugar — usado
-// pela ficha de Serviço para destacar no topo o artigo selecionado na tab
-// "Artigos" (ver artigoDestacadoCod), independentemente da ordenação
-// escolhida (compareIndexArtigos). Sem esse artigo, ou já em primeiro
-// lugar, devolve a lista tal como veio. Não mexe na lista recebida.
+// pela ficha de Supermercado e de Serviço para destacar no topo o artigo
+// selecionado na tab "Artigos" (ver artigoDestacadoCod), independentemente
+// da ordenação escolhida (compareIndexArtigos). Sem esse artigo, ou já em
+// primeiro lugar, devolve a lista tal como veio. Não mexe na lista recebida.
 // Testado em destaque-servico.test.mjs.
 function destacarArtigoNaLista(artigos, cod) {
   if (!cod) return artigos;
@@ -5731,12 +5735,12 @@ function renderSuperGroupCard(entry, tipo) {
     etqLoteEntryAtual = entry;
   }
 
-  // Na ficha de Serviço (não na de Supermercado), o artigo que estiver
-  // selecionado na tab "Artigos" é destacado no topo da tabela, com fundo
-  // sombreado — ajuda a encontrá-lo entre os outros artigos do serviço.
-  // Limpar a pesquisa da tab Artigos faz artigoDestacadoCod voltar a null,
-  // e a próxima vez que se vir esta ficha já não há destaque nenhum.
-  const artigoDestaqueCod = isSuper ? null : artigoDestacadoCod();
+  // O artigo que estiver selecionado na tab "Artigos" é destacado no topo
+  // da tabela, com fundo sombreado — ajuda a encontrá-lo entre os outros
+  // artigos da ficha, seja ela de Supermercado ou de Serviço. Limpar a
+  // pesquisa da tab Artigos faz artigoDestacadoCod voltar a null, e a
+  // próxima vez que se vir esta ficha já não há destaque nenhum.
+  const artigoDestaqueCod = artigoDestacadoCod();
 
   const linhas = destacarArtigoNaLista(entry.artigos.slice().sort(compareIndexArtigos), artigoDestaqueCod)
     .map(art => {
