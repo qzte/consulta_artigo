@@ -2,11 +2,19 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.45.0
+  Consulta de Artigos — v1.46.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.45.0 (atual)
+  v1.46.0 (atual)
+    - fix: QR Code da etiqueta sem "quiet zone" (margem em branco à volta do
+      código) — o SVG era gerado com margin:0, e o padding do .etq-qr (1mm)
+      não chega para compensar, ainda por cima com o traço preto da coluna
+      logo a seguir. Resultado: código difícil ou impossível de ler em
+      leitores mais exigentes. Passa a ter 4 módulos de margem embutidos no
+      próprio SVG, dentro do mesmo espaço de 18.7mm já reservado — não muda
+      nenhuma medida da etiqueta, só o que está lá dentro
+  v1.45.0
     - change: modo Etiqueta — a inscrição "SGCIM" passa a aparecer só na
       etiqueta rosa (artigo a pedido: Stockável N + Descrição Zona ENC). Nas
       etiquetas branca (de stock) e amarela (não-stock) a célula fica vazia
@@ -710,8 +718,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.45.0</title>
-<meta name="description" content="Consulta de Artigos v1.45.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.46.0</title>
+<meta name="description" content="Consulta de Artigos v1.46.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3354,7 +3362,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.45.0</span>
+  <span class="version">v1.46.0</span>
 </header>
 
 <div class="container">
@@ -4590,12 +4598,17 @@ function renderEtiqueta(cod, superNome, posicao) {
   const qrDados = dadosQrEtiqueta(cod, posicao, superNome);
 
   // QR em SVG (crisp na impressão), gerado pela lib embutida (offline).
+  // margin: 4 módulos de "quiet zone" à volta do próprio código — sem ela
+  // (era 0 antes) os leitores não conseguem localizar o QR, sobretudo com o
+  // traço preto da coluna a poucos milímetros: o padding do .etq-qr por si
+  // só não chega. O tamanho impresso (18.7mm, fixo em CSS) não muda — a
+  // margem entra à custa do módulo, que fica mais fino mas continua nítido.
   let qrSvg = '';
   try {
     const qr = window.qrcode(0, 'M');
     qr.addData(qrDados);
     qr.make();
-    qrSvg = qr.createSvgTag({ cellSize: 3, margin: 0, scalable: true });
+    qrSvg = qr.createSvgTag({ cellSize: 3, margin: 12, scalable: true });
   } catch (err) {
     qrSvg = '<span class="no-data">QR indisponível</span>';
   }
