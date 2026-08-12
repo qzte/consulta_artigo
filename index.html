@@ -2,11 +2,17 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.48.0
+  Consulta de Artigos — v1.49.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.48.0 (atual)
+  v1.49.0 (atual)
+    - fix: etiqueta amarela/rosa saía sempre BRANCA na impressão — a cor via
+      certa no ecrã, mas os browsers não imprimem cor/imagem de fundo por
+      omissão (só com "Gráficos de fundo" ligado à mão no diálogo de
+      impressão). Acrescentado print-color-adjust: exact (e o -webkit- para
+      Safari/Chrome móvel) à etiqueta e às células coloridas
+  v1.48.0
     - change: regra da cor da etiqueta (artigo a pedido) — deixa de olhar à
       Descrição Zona = ENC de alguma posição e passa a olhar ao novo campo
       "Pedido SGCIM" (S/N) do ficheiro Artigos (Consumo/ARM). Continua:
@@ -732,8 +738,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.48.0</title>
-<meta name="description" content="Consulta de Artigos v1.48.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.49.0</title>
+<meta name="description" content="Consulta de Artigos v1.49.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3297,6 +3303,13 @@ var qrcode = function() {
     box-sizing: border-box;
     overflow: hidden;
     font-family: 'Segoe UI', system-ui, sans-serif;
+    /* Sem isto, a generalidade dos browsers NÃO imprime cores/imagens de
+       fundo por omissão — só o fazem com "Gráficos de fundo" ligado à mão
+       no diálogo de impressão. Sem esta propriedade, a etiqueta amarela ou
+       rosa sai sempre BRANCA no papel, mesmo com a cor certa no ecrã.
+       Propriedade herdada: cobre .etq-cod-cell/.etq-descricao por baixo. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
   .etiqueta > div { border-right: 1px solid #000; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; overflow: hidden; }
   .etiqueta > div:last-child { border-right: none; }
@@ -3318,9 +3331,11 @@ var qrcode = function() {
   .etq-descricao { padding: 1mm; font-size: 10px; line-height: 1.15; background: #fff; }
   .etq-desc-txt { display: block; width: 100%; overflow-wrap: normal; }
   .etq-preco { padding: 1mm; font-size: 10px; font-weight: 600; background: #fff; }
-  /* Cor pinta só código + descrição (regra de negócio) */
-  .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; }
-  .etiqueta.cor-rosa    .etq-cod-cell, .etiqueta.cor-rosa    .etq-descricao { background: #ffd6e7; }
+  /* Cor pinta só código + descrição (regra de negócio). print-color-adjust
+     repetido aqui (não só no .etiqueta) por segurança — é herdado, mas
+     alguns browsers móveis nem sempre respeitam a herança na impressão. */
+  .etiqueta.cor-amarelo .etq-cod-cell, .etiqueta.cor-amarelo .etq-descricao { background: #ffec99; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .etiqueta.cor-rosa    .etq-cod-cell, .etiqueta.cor-rosa    .etq-descricao { background: #ffd6e7; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   /* branco = sem alteração (fundo já branco) */
   .etq-print-btn { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 18px; border-radius: 99px; border: none; background: var(--blue-txt); color: #fff; cursor: pointer; }
   .etq-print-btn:hover { filter: brightness(1.08); }
@@ -3376,7 +3391,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.48.0</span>
+  <span class="version">v1.49.0</span>
 </header>
 
 <div class="container">
