@@ -13,44 +13,39 @@ const { corDaEtiqueta, dadosQrEtiqueta, formatarPreco, sgcimDaEtiqueta } = carre
 ]);
 
 // ── corDaEtiqueta ───────────────────────────────────────
-//   Stockável = S           → branco
-//   Stockável = N + Zona ENC → rosa
-//   Stockável = N            → amarelo
+//   Stockável = S                    → branco
+//   Stockável = N + Pedido SGCIM = S → rosa
+//   Stockável = N                    → amarelo
 
-test('artigo de stock é branco, independentemente das zonas', () => {
-  assert.equal(corDaEtiqueta('S', []), 'branco');
-  assert.equal(corDaEtiqueta('S', ['ENC']), 'branco', 'o S manda, mesmo com zona ENC');
+test('artigo de stock é branco, independentemente do Pedido SGCIM', () => {
+  assert.equal(corDaEtiqueta('S', ''), 'branco');
+  assert.equal(corDaEtiqueta('S', 'S'), 'branco', 'o S do Stockável manda, mesmo com Pedido SGCIM = S');
 });
 
-test('não-stockável com zona ENC é rosa (artigo a pedido)', () => {
-  assert.equal(corDaEtiqueta('N', ['ENC']), 'rosa');
-  assert.equal(corDaEtiqueta('N', ['ARM', 'ENC']), 'rosa', 'basta uma das zonas ser ENC');
+test('não-stockável com Pedido SGCIM = S é rosa (artigo a pedido)', () => {
+  assert.equal(corDaEtiqueta('N', 'S'), 'rosa');
 });
 
-test('não-stockável sem zona ENC é amarelo', () => {
-  assert.equal(corDaEtiqueta('N', []), 'amarelo');
-  assert.equal(corDaEtiqueta('N', ['ARM']), 'amarelo');
+test('não-stockável sem Pedido SGCIM é amarelo', () => {
+  assert.equal(corDaEtiqueta('N', ''), 'amarelo');
+  assert.equal(corDaEtiqueta('N', 'N'), 'amarelo');
 });
 
 test('a ordem das regras importa: o rosa é testado antes do amarelo', () => {
   // Se o amarelo fosse testado primeiro, qualquer N caía logo em amarelo e o
   // rosa nunca aparecia.
-  assert.equal(corDaEtiqueta('N', ['ENC']), 'rosa');
+  assert.equal(corDaEtiqueta('N', 'S'), 'rosa');
 });
 
 test('maiúsculas, minúsculas e espaços não mudam a decisão', () => {
-  assert.equal(corDaEtiqueta(' s ', []), 'branco');
-  assert.equal(corDaEtiqueta('n', [' enc ']), 'rosa');
+  assert.equal(corDaEtiqueta(' s ', ''), 'branco');
+  assert.equal(corDaEtiqueta('n', ' s '), 'rosa');
 });
 
 test('valores em falta caem no caso não-stockável', () => {
-  assert.equal(corDaEtiqueta('', []), 'amarelo');
+  assert.equal(corDaEtiqueta('', ''), 'amarelo');
   assert.equal(corDaEtiqueta(null, null), 'amarelo');
   assert.equal(corDaEtiqueta(undefined, undefined), 'amarelo');
-});
-
-test('zonas vazias ou nulas dentro da lista não são confundidas com ENC', () => {
-  assert.equal(corDaEtiqueta('N', [null, '', undefined]), 'amarelo');
 });
 
 // ── sgcimDaEtiqueta ─────────────────────────────────────
