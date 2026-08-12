@@ -8,6 +8,7 @@ import { carregarDoIndex, lerIndexHtml } from './harness.mjs';
 const {
   extrairDigitos,
   codigoDeArtigoValido,
+  campoCodigoDoTextoBarras,
   escolherCodigoDasLinhas,
   lerCodigoDaResposta,
   resumirLinhasOcr,
@@ -26,6 +27,7 @@ const {
   'OCR_CONFUSOES',
   'extrairDigitos',
   'codigoDeArtigoValido',
+  'campoCodigoDoTextoBarras',
     'CODIGO_DIGITOS',
   'CAMPO_CODIGO',
   'candidatosDaLinha',
@@ -80,6 +82,25 @@ test('um código de artigo tem exactamente 10 dígitos', () => {
   assert.equal(codigoDeArtigoValido(''), '');
   assert.equal(codigoDeArtigoValido(null), '');
   assert.equal(codigoDeArtigoValido(undefined), '');
+});
+
+// ── campoCodigoDoTextoBarras ─────────────────────────────
+// O QR da etiqueta (dadosQrEtiqueta) traz código|posição|supermercado —
+// só o primeiro campo é o código.
+
+test('o QR da etiqueta desta app é reduzido ao primeiro campo', () => {
+  assert.equal(campoCodigoDoTextoBarras('1111500053|0.03.01|Bloco Operatório'), '1111500053');
+  assert.equal(campoCodigoDoTextoBarras('4827516||'), '4827516', 'posição e supermercado vazios');
+});
+
+test('um código de barras normal (sem "|") fica tal como veio', () => {
+  assert.equal(campoCodigoDoTextoBarras('1260500100'), '1260500100');
+});
+
+test('entradas vazias não rebentam', () => {
+  assert.equal(campoCodigoDoTextoBarras(''), '');
+  assert.equal(campoCodigoDoTextoBarras(null), '');
+  assert.equal(campoCodigoDoTextoBarras(undefined), '');
 });
 
 // ── configuração do motor ───────────────────────────────
