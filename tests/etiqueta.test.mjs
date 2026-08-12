@@ -5,10 +5,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { carregarDoIndex } from './harness.mjs';
 
-const { corDaEtiqueta, dadosQrEtiqueta, formatarPreco } = carregarDoIndex([
+const { corDaEtiqueta, dadosQrEtiqueta, formatarPreco, sgcimDaEtiqueta } = carregarDoIndex([
   'corDaEtiqueta',
   'dadosQrEtiqueta',
   'formatarPreco',
+  'sgcimDaEtiqueta',
 ]);
 
 // ── corDaEtiqueta ───────────────────────────────────────
@@ -50,6 +51,18 @@ test('valores em falta caem no caso não-stockável', () => {
 
 test('zonas vazias ou nulas dentro da lista não são confundidas com ENC', () => {
   assert.equal(corDaEtiqueta('N', [null, '', undefined]), 'amarelo');
+});
+
+// ── sgcimDaEtiqueta ─────────────────────────────────────
+//   Só o artigo a pedido (cor rosa) leva a inscrição "SGCIM"
+
+test('só a etiqueta rosa (artigo a pedido) traz a inscrição SGCIM', () => {
+  assert.equal(sgcimDaEtiqueta('rosa'), 'SGCIM');
+});
+
+test('as etiquetas branca e amarela não trazem SGCIM', () => {
+  assert.equal(sgcimDaEtiqueta('branco'), '');
+  assert.equal(sgcimDaEtiqueta('amarelo'), '');
 });
 
 // ── dadosQrEtiqueta ─────────────────────────────────────
