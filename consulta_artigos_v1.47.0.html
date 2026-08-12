@@ -2,11 +2,18 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.46.0
+  Consulta de Artigos — v1.47.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.46.0 (atual)
+  v1.47.0 (atual)
+    - feat: scanner "Pesquisar" passa a reconhecer também o QR da etiqueta
+      gerada por esta app (modo Etiqueta), não só o código de barras Code 39
+      das etiquetas antigas do armazém. O QR traz código|posição|
+      supermercado (dadosQrEtiqueta); o scan isola o primeiro campo para não
+      inventar um código a colar os três num só. Único formato 2D admitido
+      no leitor, de propósito — é o único que a app chega a gerar
+  v1.46.0
     - fix: QR Code da etiqueta sem "quiet zone" (margem em branco à volta do
       código) — o SVG era gerado com margin:0, e o padding do .etq-qr (1mm)
       não chega para compensar, ainda por cima com o traço preto da coluna
@@ -718,8 +725,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.46.0</title>
-<meta name="description" content="Consulta de Artigos v1.46.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.47.0</title>
+<meta name="description" content="Consulta de Artigos v1.47.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3362,7 +3369,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.46.0</span>
+  <span class="version">v1.47.0</span>
 </header>
 
 <div class="container">
@@ -4967,6 +4974,16 @@ function codigoDeArtigoValido(digitos) {
   return String(digitos || '').length === CODIGO_DIGITOS ? String(digitos) : '';
 }
 
+// O leitor de códigos de barras (ZXing) passa também a decifrar o QR da
+// etiqueta gerada por esta app, que traz código|posição|supermercado (ver
+// dadosQrEtiqueta) — não só o código. Isolar o primeiro campo evita repetir
+// aqui a avaria já corrigida no OCR (v1.35.0 e anteriores): juntar os
+// dígitos do texto todo colava os campos todos num código inventado. Um
+// código de barras normal não tem "|", por isso fica como está.
+function campoCodigoDoTextoBarras(texto) {
+  return String(texto || '').split('|')[0];
+}
+
 // Escolhe o código de artigo de entre as linhas que o OCR leu na faixa.
 //
 // A etiqueta é uma lista de campos, todos do MESMO tamanho de letra:
@@ -5234,12 +5251,14 @@ const SCAN_INTERVALO_MS = 1500;
 // cada 2-4 segundos, e quase nunca calhava num fotograma nítido.
 const SCAN_BARCODE_INTERVALO_MS = 120;
 
-// Formatos que interessam mesmo: as etiquetas usam Code 39, e os artigos
-// embalados trazem EAN/UPC. Restringir a lista (em vez de deixar o ZXing
-// tentar todos os formatos que conhece, incluindo os 2D) torna cada
-// tentativa mais rápida e reduz leituras erradas. TRY_HARDER autoriza o
-// ZXing a gastar mais esforço por fotograma — compensa, porque agora há
-// muitas mais tentativas por segundo.
+// Formatos que interessam mesmo: as etiquetas antigas do armazém usam Code
+// 39, os artigos embalados trazem EAN/UPC, e a etiqueta gerada por esta app
+// (modo Etiqueta) traz um QR (ver dadosQrEtiqueta). Restringir a lista (em
+// vez de deixar o ZXing tentar todos os formatos que conhece) torna cada
+// tentativa mais rápida e reduz leituras erradas — QR_CODE é o único
+// formato 2D admitido, de propósito: é o único que a app chega a gerar.
+// TRY_HARDER autoriza o ZXing a gastar mais esforço por fotograma —
+// compensa, porque agora há muitas mais tentativas por segundo.
 function criarLeitorCodigoBarras() {
   const LeitorZXing = ZXingBrowser.BrowserMultiFormatReader;
   try {
@@ -5249,6 +5268,7 @@ function criarLeitorCodigoBarras() {
     hints.set(DecodeHintType.POSSIBLE_FORMATS, [
       BarcodeFormat.CODE_39, BarcodeFormat.CODE_128, BarcodeFormat.ITF,
       BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A,
+      BarcodeFormat.QR_CODE,
     ]);
     hints.set(DecodeHintType.TRY_HARDER, true);
     return new LeitorZXing(hints);
@@ -5514,19 +5534,19 @@ function prepararFotogramaParaCodigoBarras(video, canvas) {
   return canvas;
 }
 
-// Tenta ler o código de barras (ZXing) no fotograma. Devolve os dígitos
-// encontrados, ou '' se não houver nenhum código de barras nesse
-// fotograma — isto é o caso normal em muitas tentativas (a etiqueta pode
-// estar num ângulo ou distância que ainda não dá para ler), não um erro.
+// Tenta ler o código de barras OU o QR (ZXing) no fotograma. Devolve os
+// dígitos encontrados, ou '' se não houver nenhum código nesse fotograma —
+// isto é o caso normal em muitas tentativas (a etiqueta pode estar num
+// ângulo ou distância que ainda não dá para ler), não um erro.
 async function tentarLerCodigoBarras(fotograma) {
   try {
     const resultado = await scanBarcodeReader.decodeFromCanvas(fotograma);
     // Só passa se tiver a forma de um código de artigo. Um EAN de produto
     // embalado (13 dígitos) ou um falso positivo do leitor não chegam aqui
     // — e nem um nem outro corresponderiam a artigo nenhum na pesquisa.
-    return codigoDeArtigoValido(extrairDigitos(resultado.getText()));
+    return codigoDeArtigoValido(extrairDigitos(campoCodigoDoTextoBarras(resultado.getText())));
   } catch (err) {
-    return ''; // nenhum código de barras encontrado neste fotograma
+    return ''; // nenhum código de barras/QR encontrado neste fotograma
   }
 }
 
