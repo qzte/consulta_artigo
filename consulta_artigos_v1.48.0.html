@@ -2,11 +2,18 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.47.0
+  Consulta de Artigos — v1.48.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.47.0 (atual)
+  v1.48.0 (atual)
+    - change: regra da cor da etiqueta (artigo a pedido) — deixa de olhar à
+      Descrição Zona = ENC de alguma posição e passa a olhar ao novo campo
+      "Pedido SGCIM" (S/N) do ficheiro Artigos (Consumo/ARM). Continua:
+      Stockável S → branco; Stockável N + Pedido SGCIM S → rosa; Stockável N
+      → amarelo. A Descrição Zona continua a ser lida e mostrada na ficha do
+      artigo — só deixou de decidir a cor da etiqueta
+  v1.47.0
     - feat: scanner "Pesquisar" passa a reconhecer também o QR da etiqueta
       gerada por esta app (modo Etiqueta), não só o código de barras Code 39
       das etiquetas antigas do armazém. O QR traz código|posição|
@@ -725,8 +732,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.47.0</title>
-<meta name="description" content="Consulta de Artigos v1.47.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.48.0</title>
+<meta name="description" content="Consulta de Artigos v1.48.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3369,7 +3376,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.47.0</span>
+  <span class="version">v1.48.0</span>
 </header>
 
 <div class="container">
@@ -3780,20 +3787,23 @@ function processArmFile(headers, rows, fname) {
   const iObs      = col(headers, ['Obs']);
   const iStock    = col(headers, ['Stockável', 'Stockavel']);
   const iPreco    = col(headers, ['Preço Médio Artigo', 'Preco Medio Artigo']);
+  const iPedidoSgcim = col(headers, ['Pedido SGCIM', 'Pedido Sgcim']);
 
   armMap = {};
   rows.forEach(r => {
     const cod = v(r, iCod);
     if (!cod) return;
-    if (!armMap[cod]) armMap[cod] = { descArtigo: '', posicoes: [], stockavel: '', precoMedio: '' };
+    if (!armMap[cod]) armMap[cod] = { descArtigo: '', posicoes: [], stockavel: '', precoMedio: '', pedidoSgcim: '' };
     const desc = v(r, iDescArt);
     if (desc && !armMap[cod].descArtigo) armMap[cod].descArtigo = desc;
-    // Stockável e Preço Médio são propriedades do artigo (não da posição);
-    // guarda-se a primeira ocorrência não-vazia de cada.
+    // Stockável, Preço Médio e Pedido SGCIM são propriedades do artigo (não
+    // da posição); guarda-se a primeira ocorrência não-vazia de cada.
     const stock = v(r, iStock);
     if (stock && !armMap[cod].stockavel) armMap[cod].stockavel = stock;
     const preco = v(r, iPreco);
     if (preco !== '' && armMap[cod].precoMedio === '') armMap[cod].precoMedio = preco;
+    const pedidoSgcim = v(r, iPedidoSgcim);
+    if (pedidoSgcim && !armMap[cod].pedidoSgcim) armMap[cod].pedidoSgcim = pedidoSgcim;
     const entry = { codArm: v(r, iCodArm), nomeArm: v(r, iNomeArm), zona: v(r, iZona), descZona: v(r, iDescZona), um: v(r, iUM), obs: v(r, iObs) };
     if (entry.nomeArm && !armMap[cod].posicoes.find(p => p.nomeArm === entry.nomeArm && p.descZona === entry.descZona))
       armMap[cod].posicoes.push(entry);
@@ -3811,14 +3821,14 @@ function processArmFile(headers, rows, fname) {
 // Cor de fundo do código+descrição, por regra de negócio. A ORDEM importa:
 // "a pedido" (rosa) é o caso mais específico e é testado ANTES de amarelo —
 // senão qualquer N cairia logo em amarelo.
-//   Stockável = S           → branco  (artigo de stock)
-//   Stockável = N + Zona ENC → rosa   (artigo a pedido)
-//   Stockável = N            → amarelo (não-stockável)
-function corDaEtiqueta(stockavel, descZonas) {
+//   Stockável = S                     → branco  (artigo de stock)
+//   Stockável = N + Pedido SGCIM = S  → rosa    (artigo a pedido)
+//   Stockável = N                     → amarelo (não-stockável)
+function corDaEtiqueta(stockavel, pedidoSgcim) {
   const s = String(stockavel || '').trim().toUpperCase();
   if (s === 'S') return 'branco';
-  const temEnc = (descZonas || []).some(z => String(z || '').trim().toUpperCase() === 'ENC');
-  if (temEnc) return 'rosa';
+  const pedido = String(pedidoSgcim || '').trim().toUpperCase();
+  if (pedido === 'S') return 'rosa';
   return 'amarelo';
 }
 
@@ -4598,9 +4608,8 @@ function imprimirEtiquetasEscolhidas() {
 // "SGCIM" só aparece no caso rosa (artigo a pedido) — nos outros dois a
 // célula fica vazia, para não desalinhar as linhas da coluna do meio.
 function renderEtiqueta(cod, superNome, posicao) {
-  const arm = armMap[cod] || { descArtigo: '', posicoes: [], stockavel: '', precoMedio: '' };
-  const descZonas = (arm.posicoes || []).map(p => p.descZona);
-  const cor = corDaEtiqueta(arm.stockavel, descZonas);
+  const arm = armMap[cod] || { descArtigo: '', posicoes: [], stockavel: '', precoMedio: '', pedidoSgcim: '' };
+  const cor = corDaEtiqueta(arm.stockavel, arm.pedidoSgcim);
   const preco = formatarPreco(arm.precoMedio);
   const qrDados = dadosQrEtiqueta(cod, posicao, superNome);
 
