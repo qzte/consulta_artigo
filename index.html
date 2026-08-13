@@ -2,11 +2,19 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.50.0
+  Consulta de Artigos — v1.51.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.50.0 (atual)
+  v1.51.0 (atual)
+    - feat: scan ao vivo — aceitar um código lido do QR da etiqueta
+      (código|posição|supermercado) salta agora diretamente para a ficha
+      desse supermercado, com o artigo já destacado no topo (mesmo mecanismo
+      do clique manual num artigo antes de ver o supermercado). Aceitar um
+      código de barras normal ou uma leitura por OCR continua a preencher a
+      pesquisa da tab "Artigos", como até aqui — nenhum dos dois traz posição
+      nem supermercado
+  v1.50.0
     - change: no índice de Supermercados/Serviços, a barra "Imprimir
       etiquetas (N)" passa a aparecer também no topo da tabela de artigos,
       além da que já existia no fundo — mais visível em tabelas compridas,
@@ -743,8 +751,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.50.0</title>
-<meta name="description" content="Consulta de Artigos v1.50.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.51.0</title>
+<meta name="description" content="Consulta de Artigos v1.51.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -3397,7 +3405,7 @@ var qrcode = function() {
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.50.0</span>
+  <span class="version">v1.51.0</span>
 </header>
 
 <div class="container">
@@ -4945,6 +4953,34 @@ function irParaArtigoNoIndice(cod) {
   scrollParaResultados();
 }
 
+// Aceitar, no scan ao vivo, um candidato lido do QR da etiqueta
+// (código|posição|supermercado — ver dadosQrEtiqueta e usarCandidato): ao
+// contrário do código de barras normal ou do OCR, este QR já diz EM QUE
+// supermercado o artigo está, por isso salta logo para a ficha desse
+// supermercado em vez de ficar na tab "Artigos" à espera que a pessoa
+// procure. Preencher a caixa de pesquisa da tab "Artigos" com o código lido
+// (sem lá mudar o modo) é o que faz artigoDestacadoCod() reconhecer este
+// artigo e destacarArtigoNaLista pô-lo no topo da tabela, tal como já
+// acontece ao clicar manualmente num artigo antes de ver o supermercado.
+function irParaSupermercadoDoScan(cod, nomeSuper) {
+  document.getElementById('search-input-artigo').value = cod;
+  document.getElementById('search-input-super').value = nomeSuper;
+  aplicarModoUI('super');
+
+  // O QR só traz o NOME do supermercado, não o seu código — ao contrário de
+  // irParaSupermercadoNoIndice, que parte de um clique num badge e já
+  // conhece os dois. Resolve-se aqui o código a partir da própria pesquisa,
+  // escolhendo o supermercado cujo nome bate exatamente com o do QR; sem
+  // essa correspondência exata, fica por escolher (o picker aparece na
+  // mesma, com os resultados da pesquisa por nome).
+  const grupo = buildSupermercadoIndex(normaliza(nomeSuper)).find(g => g.nome === nomeSuper);
+  selectedIndexKey = grupo ? 'supermercado|' + grupo.cod + '|' + grupo.nome : null;
+
+  doSearch();
+
+  scrollParaResultados();
+}
+
 // Mensagem de "sem resultados", reutilizada pelos dois modos de pesquisa.
 function emptyStateHtml(qRaw, tipoLabel) {
   return `<div class="empty-state">
@@ -5015,6 +5051,17 @@ function codigoDeArtigoValido(digitos) {
 // código de barras normal não tem "|", por isso fica como está.
 function campoCodigoDoTextoBarras(texto) {
   return String(texto || '').split('|')[0];
+}
+
+// Isola a posição e o supermercado do texto código|posição|supermercado do
+// QR da etiqueta (ver dadosQrEtiqueta) — usado para decidir, depois de a
+// pessoa aceitar o candidato, se o scan salta para a ficha desse
+// supermercado (QR) ou fica na tab "Artigos" (código de barras normal ou
+// OCR, que nunca trazem estes dois campos). Um código de barras normal, sem
+// "|" nenhum, devolve null.
+function camposQrEtiqueta(texto) {
+  const partes = String(texto || '').split('|');
+  return partes.length === 3 ? { posicao: partes[1], supermercado: partes[2] } : null;
 }
 
 // Escolhe o código de artigo de entre as linhas que o OCR leu na faixa.
@@ -5269,6 +5316,16 @@ let scanCandidatoAtual = '';
 let scanEstadoLeitura = { ultima: '', count: 0 };
 let scanEstadoCodigoBarras = { ultima: '', count: 0 };
 
+// Posição + supermercado do candidato atual, quando ele veio do QR da
+// etiqueta (ver camposQrEtiqueta) — null para código de barras normal ou
+// OCR, que nunca trazem estes dois campos. É o que usarCandidato() usa para
+// decidir para onde saltar depois de a pessoa aceitar o código.
+let scanCandidatoQrEtiqueta = null;
+// Texto bruto (não só os dígitos) do último código de barras/QR lido com
+// sucesso por tentarLerCodigoBarras — ver ali o porquê de ficar de fora do
+// valor devolvido.
+let scanUltimoTextoCodigoBarras = '';
+
 // Tempo de espera entre tentativas de OCR. Isto é A PARTIR do fim da
 // tentativa anterior (nunca em paralelo), para não sobrecarregar o
 // aparelho com pedidos de OCR acumulados.
@@ -5361,6 +5418,8 @@ async function abrirScanAoVivo() {
   const overlay = document.getElementById('scan-overlay');
   document.getElementById('scan-candidate').style.display = 'none';
   scanCandidatoAtual = '';
+  scanCandidatoQrEtiqueta = null;
+  scanUltimoTextoCodigoBarras = '';
   scanEstadoLeitura = { ultima: '', count: 0 };
   scanEstadoCodigoBarras = { ultima: '', count: 0 };
   document.getElementById('scan-status').textContent = 'A abrir câmara…';
@@ -5459,6 +5518,8 @@ async function abrirScanAoVivo() {
 function fecharScanAoVivo() {
   scanLoopAtivo = false;
   scanCandidatoAtual = '';
+  scanCandidatoQrEtiqueta = null;
+  scanUltimoTextoCodigoBarras = '';
   scanEstadoLeitura = { ultima: '', count: 0 };
   scanEstadoCodigoBarras = { ultima: '', count: 0 };
   if (scanStream) {
@@ -5494,17 +5555,33 @@ window.addEventListener('keydown', ev => {
 function continuarScan() {
   document.getElementById('scan-candidate').style.display = 'none';
   scanCandidatoAtual = '';
+  scanCandidatoQrEtiqueta = null;
+  scanUltimoTextoCodigoBarras = '';
   scanEstadoLeitura = { ultima: '', count: 0 };
   scanEstadoCodigoBarras = { ultima: '', count: 0 };
   document.getElementById('scan-status').textContent = 'A tentar ler o código…';
 }
 
-// "Usar este código": fecha a câmara e preenche a pesquisa com o
-// candidato atual — a pessoa ainda revê/corrige antes de pesquisar.
+// "Usar este código": fecha a câmara e reage conforme a origem do código.
+//
+// O QR da etiqueta (dadosQrEtiqueta) já diz o supermercado E a posição onde
+// o artigo está — por isso salta direto para a ficha desse supermercado
+// (irParaSupermercadoDoScan), com o artigo já destacado no topo, em vez de
+// deixar a pessoa à procura dele na tab "Artigos". Um código de barras
+// normal ou uma leitura por OCR nunca trazem essa informação (não têm
+// posição nem supermercado, só o código), por isso mantêm o comportamento
+// anterior: preencher a pesquisa da tab "Artigos".
 function usarCandidato() {
   const digitos = scanCandidatoAtual;
+  const qrInfo = scanCandidatoQrEtiqueta;
   fecharScanAoVivo();
   if (!digitos) return;
+
+  if (qrInfo && qrInfo.supermercado) {
+    irParaSupermercadoDoScan(digitos, qrInfo.supermercado);
+    return;
+  }
+
   const inp = document.getElementById('search-input-artigo');
   inp.value = digitos;
   inp.focus();
@@ -5513,9 +5590,9 @@ function usarCandidato() {
   // da pessoa é que o dispara. Sem esta chamada, o oninput="onSearchInput()"
   // da caixa nunca corria e o código aparecia lá escrito sem nenhuma
   // pesquisa a acontecer; só apagando um caráter (aí sim, um "input" a
-  // sério) é que a app reagia. As outras duas funções que preenchem a
-  // pesquisa por código — irParaSupermercadoNoIndice e irParaArtigoNoIndice
-  // — já tratavam disto; esta tinha ficado de fora.
+  // sério) é que a app reagia. As outras funções que preenchem a pesquisa
+  // por código — irParaSupermercadoNoIndice, irParaArtigoNoIndice e
+  // irParaSupermercadoDoScan — já tratavam disto; esta tinha ficado de fora.
   // Chama-se onSearchInput() e não doSearch() diretamente para reaproveitar
   // a limpeza de estado que ele faz (selectedIndexKey e companhia), senão a
   // ficha escolhida numa pesquisa anterior podia continuar a aparecer por
@@ -5571,13 +5648,24 @@ function prepararFotogramaParaCodigoBarras(video, canvas) {
 // dígitos encontrados, ou '' se não houver nenhum código nesse fotograma —
 // isto é o caso normal em muitas tentativas (a etiqueta pode estar num
 // ângulo ou distância que ainda não dá para ler), não um erro.
+//
+// Guarda também o texto bruto devolvido pelo ZXing (scanUltimoTextoCodigoBarras)
+// sempre que os dígitos forem válidos — é dele que loopCodigoBarras tira,
+// via camposQrEtiqueta, a posição e o supermercado quando o código vier do QR
+// da etiqueta. Fica de fora do valor devolvido de propósito: a confirmação
+// por 2 leituras seguidas (processarLeituraConsecutiva) compara só os
+// dígitos, e as duas leituras que confirmam o mesmo código trazem sempre o
+// mesmo texto bruto.
 async function tentarLerCodigoBarras(fotograma) {
   try {
     const resultado = await scanBarcodeReader.decodeFromCanvas(fotograma);
+    const texto = resultado.getText();
     // Só passa se tiver a forma de um código de artigo. Um EAN de produto
     // embalado (13 dígitos) ou um falso positivo do leitor não chegam aqui
     // — e nem um nem outro corresponderiam a artigo nenhum na pesquisa.
-    return codigoDeArtigoValido(extrairDigitos(campoCodigoDoTextoBarras(resultado.getText())));
+    const digitos = codigoDeArtigoValido(extrairDigitos(campoCodigoDoTextoBarras(texto)));
+    if (digitos) scanUltimoTextoCodigoBarras = texto;
+    return digitos;
   } catch (err) {
     return ''; // nenhum código de barras/QR encontrado neste fotograma
   }
@@ -5586,8 +5674,14 @@ async function tentarLerCodigoBarras(fotograma) {
 // Mostra um candidato encontrado e deixa a decisão à pessoa. Os dois
 // ciclos param de ler enquanto houver candidato à espera de resposta
 // (testam scanCandidatoAtual), e voltam a ler em continuarScan().
-function mostrarCandidato(digitos) {
+//
+// qrInfo (posicao + supermercado, ver camposQrEtiqueta) só vem preenchido
+// quando o candidato veio do QR da etiqueta — o ciclo do OCR nunca o passa,
+// porque o texto que lê nunca tem essa forma. Guardado à parte dos dígitos
+// para usarCandidato() decidir depois para onde saltar.
+function mostrarCandidato(digitos, qrInfo) {
   scanCandidatoAtual = digitos;
+  scanCandidatoQrEtiqueta = qrInfo || null;
   document.getElementById('scan-candidate-num').textContent = digitos;
   document.getElementById('scan-candidate').style.display = 'flex';
   document.getElementById('scan-status').textContent = 'Código encontrado:';
@@ -5616,7 +5710,7 @@ async function loopCodigoBarras() {
       if (!scanLoopAtivo) break; // fechado/confirmado enquanto a leitura corria
       scanEstadoCodigoBarras = processarLeituraConsecutiva(scanEstadoCodigoBarras, digitos);
       if (scanEstadoCodigoBarras.confirmado && !scanCandidatoAtual) {
-        mostrarCandidato(scanEstadoCodigoBarras.ultima);
+        mostrarCandidato(scanEstadoCodigoBarras.ultima, camposQrEtiqueta(scanUltimoTextoCodigoBarras));
       }
     }
     if (!scanLoopAtivo) break;

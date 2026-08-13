@@ -9,6 +9,7 @@ const {
   extrairDigitos,
   codigoDeArtigoValido,
   campoCodigoDoTextoBarras,
+  camposQrEtiqueta,
   escolherCodigoDasLinhas,
   lerCodigoDaResposta,
   resumirLinhasOcr,
@@ -28,6 +29,7 @@ const {
   'extrairDigitos',
   'codigoDeArtigoValido',
   'campoCodigoDoTextoBarras',
+  'camposQrEtiqueta',
     'CODIGO_DIGITOS',
   'CAMPO_CODIGO',
   'candidatosDaLinha',
@@ -103,6 +105,31 @@ test('entradas vazias não rebentam', () => {
   assert.equal(campoCodigoDoTextoBarras(undefined), '');
 });
 
+// ── camposQrEtiqueta ─────────────────────────────────────
+// Decide se o scan salta para a ficha do supermercado (QR) ou fica na tab
+// "Artigos" (código de barras normal ou OCR) — ver usarCandidato.
+
+test('o QR da etiqueta desta app devolve a posição e o supermercado', () => {
+  assert.deepEqual(
+    camposQrEtiqueta('1111500053|0.03.01|Bloco Operatório'),
+    { posicao: '0.03.01', supermercado: 'Bloco Operatório' }
+  );
+});
+
+test('um código de barras normal (sem "|") não é tratado como QR da etiqueta', () => {
+  assert.equal(camposQrEtiqueta('1260500100'), null);
+});
+
+test('um EAN de produto embalado (sem "|") também não é QR da etiqueta', () => {
+  assert.equal(camposQrEtiqueta('5601234567890'), null);
+});
+
+test('camposQrEtiqueta com entradas vazias não rebenta', () => {
+  assert.equal(camposQrEtiqueta(''), null);
+  assert.equal(camposQrEtiqueta(null), null);
+  assert.equal(camposQrEtiqueta(undefined), null);
+});
+
 // ── configuração do motor ───────────────────────────────
 // Não é um teste de comportamento: é uma tranca sobre a linha de
 // configuração que causou a avaria da v1.36.0. Nenhum teste de função pura
@@ -144,6 +171,32 @@ test('o código de barras passa pela mesma validação de formato que o OCR', ()
     /codigoDeArtigoValido\(/,
     'tentarLerCodigoBarras tem de validar o formato antes de devolver o código'
   );
+});
+
+test('o candidato do código de barras leva a informação do QR ao mostrar-se', () => {
+  // loopCodigoBarras depende da câmara, por isso não dá para o chamar aqui.
+  // A ligação que interessa é visível no ficheiro: sem ela, mostrarCandidato
+  // nunca recebe camposQrEtiqueta, e usarCandidato() nunca saberia que o
+  // candidato veio do QR da etiqueta.
+  const src = lerIndexHtml();
+  const corpo = src.slice(src.indexOf('async function loopCodigoBarras'));
+  assert.match(
+    corpo.slice(0, corpo.indexOf('\nasync function loopOcr')),
+    /mostrarCandidato\(scanEstadoCodigoBarras\.ultima,\s*camposQrEtiqueta\(/,
+    'loopCodigoBarras tem de passar camposQrEtiqueta(scanUltimoTextoCodigoBarras) a mostrarCandidato'
+  );
+});
+
+test('usarCandidato salta para o supermercado só quando o candidato veio do QR', () => {
+  // DOM à parte (document.getElementById, etc.), o que importa aqui é a
+  // condição em si: só um candidato com camposQrEtiqueta().supermercado
+  // preenchido pode saltar para irParaSupermercadoDoScan — código de barras
+  // normal e OCR nunca preenchem scanCandidatoQrEtiqueta (ver mostrarCandidato)
+  // e têm de continuar a preencher a pesquisa da tab "Artigos".
+  const src = lerIndexHtml();
+  const corpo = src.slice(src.indexOf('function usarCandidato'), src.indexOf('function prepararFotogramaParaOcr'));
+  assert.match(corpo, /qrInfo\s*&&\s*qrInfo\.supermercado/, 'usarCandidato tem de verificar qrInfo.supermercado antes de saltar');
+  assert.match(corpo, /irParaSupermercadoDoScan\(/, 'usarCandidato tem de chamar irParaSupermercadoDoScan para o QR da etiqueta');
 });
 
 test('as duas vias usam a MESMA função de validação', () => {
