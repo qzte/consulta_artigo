@@ -26,7 +26,7 @@
 // antigos indefinidamente, mesmo com o index.html novo. O activate apaga as
 // caches com nome diferente deste, e é aí que as cópias antigas
 // desaparecem do dispositivo.
-const CACHE_NAME = 'consulta-artigos-v1.52.0';
+const CACHE_NAME = 'consulta-artigos-v1.53.0';
 
 // Página a servir offline quando a rede falha numa navegação.
 const OFFLINE_URL = './index.html';
@@ -49,31 +49,41 @@ const PRECACHE_LOCAL = [
   // propósito: sem esta biblioteca a app abre mas não lê ficheiro nenhum, por
   // isso é mesmo um erro de instalação e não uma degradação aceitável.
   './xlsx.full.min.js',
+  // Desde a v1.53.0 o Tesseract, o ZXing e o qrcode seguem o mesmo caminho
+  // que o xlsx: são ficheiros deste repositório (ver o comentário nas tags
+  // <script> do index.html). É isto que faz o scan e a etiqueta funcionarem
+  // já na PRIMEIRA abertura sem rede — vindos de CDN, só ficavam em cache
+  // depois de uma visita com internet.
+  './tesseract.min.js',
+  // O worker do Tesseract. Não é carregado pelo index.html: é o próprio
+  // Tesseract que lhe vai buscar em runtime, pelo workerPath que
+  // abrirScanAoVivo lhe passa.
+  './worker.min.js',
+  './zxing-browser.min.js',
+  './qrcode.js',
 ];
 
-// Bibliotecas externas (CDN). Guardadas em separado e em modo
-// "best-effort": basta uma delas estar em baixo, bloqueada pela rede da
-// instituição, ou responder com um redirecionamento, para um cache.addAll
-// único rebentar por inteiro — e, com ele, TODO o precache, incluindo os
-// ficheiros locais acima. Era assim até à v1.26.0: numa rede que
-// bloqueasse um destes domínios, o modo offline nunca chegava a funcionar
-// e não havia nenhum sinal disso.
+// Ficheiros que a app vai buscar a uma CDN em runtime. Guardados em
+// separado e em modo "best-effort": basta um deles estar em baixo, ou
+// bloqueado pela rede da instituição, para um cache.addAll único rebentar
+// por inteiro — e, com ele, TODO o precache, incluindo os ficheiros locais
+// acima. Era assim até à v1.26.0: numa rede que bloqueasse um destes
+// domínios, o modo offline nunca chegava a funcionar e não havia nenhum
+// sinal disso.
 //
-// Versões fixadas de propósito: o ZXing vinha de "@latest", que além de
-// ser um alvo em movimento (uma versão nova podia partir a app sem nada
-// ter mudado aqui) responde com um redirecionamento do unpkg para a
-// versão concreta — e respostas redirecionadas não podem ser guardadas
-// diretamente em cache.
-const PRECACHE_CDN = [
-  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
-  // O Tesseract carrega este segundo ficheiro em runtime, quando o scan é
-  // aberto pela primeira vez. Fica aqui para o scan também funcionar da
-  // primeira vez já sem rede. Os restantes (motor wasm e dados de idioma)
-  // vêm de outros domínios e continuam a ser guardados pelo handleAsset na
-  // primeira utilização com internet — ver a nota lá em baixo.
-  'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js',
-  'https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js',
-];
+// Desde a v1.53.0 esta lista está VAZIA, e isso é de propósito: as três
+// bibliotecas que aqui estavam (Tesseract, o seu worker e o ZXing) passaram
+// a ser ficheiros deste repositório e subiram para a lista obrigatória.
+//
+// O que AINDA vem de CDN é o que o Tesseract carrega por sua conta quando o
+// OCR corre pela primeira vez: o motor (tesseract-core[-simd]-lstm.wasm.js,
+// ~3.9 MB) e os dados de idioma (eng.traineddata.gz, ~2.9 MB). Não estão
+// aqui porque são ~7 MB que toda a gente descarregaria na instalação,
+// incluindo quem nunca usa o OCR. Continuam a ser guardados pelo
+// handleAsset na primeira utilização COM internet — ou seja, o OCR é a
+// única parte do scan que ainda exige ter havido rede uma vez. A leitura de
+// códigos de barras e do QR da etiqueta (ZXing) já não exige nada disso.
+const PRECACHE_CDN = [];
 
 // Guarda uma resposta em cache. cache.put() recusa respostas
 // redirecionadas (response.redirected), por isso nesse caso guarda-se o
