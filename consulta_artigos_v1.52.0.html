@@ -2,11 +2,39 @@
 <html lang="pt">
 <head>
 <!--
-  Consulta de Artigos — v1.51.0
+  Consulta de Artigos — v1.52.0
   Semantic Versioning (https://semver.org)
 
   Changelog:
-  v1.51.0 (atual)
+  v1.52.0 (atual)
+    - security: as duas bibliotecas de CDN (Tesseract.js e ZXing) passam a
+      ser carregadas com integrity (SRI) + crossorigin. Sem isto, quem
+      controlasse a CDN — ou qualquer intermediário na rede — podia servir
+      outro JavaScript, que correria com acesso total aos ficheiros do
+      armazém carregados na app. O xlsx já tinha saído para dentro do
+      repositório por causa de CVEs; estas duas ficam agora fechadas pelo
+      resumo. Um resumo que não bata certo não parte a app: as bibliotecas
+      não carregam e o scan diz que a leitura não está disponível
+    - a11y: os cabeçalhos de ordenação do índice (Código / Artigo /
+      Posição) deixam de ser um <th> com onclick e passam a ter um <button>
+      lá dentro — focáveis, activáveis por Enter/Espaço e com aria-sort a
+      dizer por que coluna a tabela está ordenada. Ao olho ficam iguais
+    - feat: aviso "Há uma versão nova desta app" com botão para recarregar,
+      quando um Service Worker novo toma conta de uma página já aberta. O
+      sw.js faz skipWaiting + claim, por isso esse estado misto (HTML
+      antigo, Service Worker novo) existia sem sinal nenhum. Não recarrega
+      sozinho de propósito — podia apagar uma pesquisa ou uma selecção de
+      etiquetas a meio
+    - perf: o índice de Supermercados deixa de varrer a lista inteira de
+      caixas uma vez por cada supermercado de cada artigo (agora agrupa-as
+      uma vez por artigo, em agruparCaixasPorSupermercado). Era trabalho
+      artigos x supermercados x caixas a cada tecla escrita na pesquisa
+    - test: cobertura para col() e validarCabecalho() — a correspondência
+      de colunas é onde mora o erro mais caro desta app (uma coluna mal
+      apanhada sai calada em todas as fichas) e não tinha teste nenhum.
+      Inclui um teste que deixa escrita, à vista, a aresta que sobra: sem
+      uma coluna de nome exacto, "Artigo" ainda cai no "Código Artigo"
+  v1.51.0
     - feat: scan ao vivo — aceitar um código lido do QR da etiqueta
       (código|posição|supermercado) salta agora diretamente para a ficha
       desse supermercado, com o artigo já destacado no topo (mesmo mecanismo
@@ -751,8 +779,8 @@
 -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Consulta de Artigos — v1.51.0</title>
-<meta name="description" content="Consulta de Artigos v1.51.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
+<title>Consulta de Artigos — v1.52.0</title>
+<meta name="description" content="Consulta de Artigos v1.52.0 — aplicação para consultar armazém, posição, supermercados e caixas a partir dos ficheiros T_supermercados e Consumo.">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1a4fa0">
 <link rel="icon" href="icon-192.png">
@@ -774,13 +802,32 @@
      Para atualizar: descarregar de https://cdn.sheetjs.com/xlsx-<versão>/package/dist/xlsx.full.min.js
      e substituir ./xlsx.full.min.js (não é preciso mexer neste caminho). -->
 <script src="./xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+<!-- integrity (SRI): o browser compara o ficheiro recebido com este resumo e
+     recusa-o se não bater certo. Sem isto, um comprometimento da CDN — ou
+     qualquer intermediário na rede — podia servir outro JavaScript, que
+     correria com acesso total aos ficheiros do armazém carregados na app.
+     O xlsx saiu daqui para dentro do repositório por causa de CVEs (ver
+     acima); estas duas continuam em CDN, e o integrity é o que fecha essa
+     porta. crossorigin="anonymous" é obrigatório para o integrity ser
+     verificado num pedido para outro domínio.
+     Os resumos são dos ficheiros do pacote npm da versão fixada — é deles
+     que o jsdelivr e o unpkg servem. Ao subir a versão de uma destas
+     bibliotecas é preciso recalcular o resumo respectivo:
+       npm pack tesseract.js@<versão> && tar -xzf tesseract.js-<versão>.tgz
+       openssl dgst -sha384 -binary package/dist/tesseract.min.js | openssl base64 -A
+     Um resumo errado não parte a app: as duas bibliotecas não chegam a ser
+     carregadas e abrirScanAoVivo diz que a leitura não está disponível. -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"
+        integrity="sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F"
+        crossorigin="anonymous"></script>
 <!-- Versão fixada (era "@latest"): "latest" muda sozinho, e uma versão nova
      do ZXing podia partir o scan sem nada ter mudado neste ficheiro. 0.2.1
      é exatamente o que o "@latest" resolvia. O caminho completo evita ainda
      o redirecionamento do unpkg, que impedia o Service Worker de guardar
      esta biblioteca em cache para uso offline. -->
-<script src="https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js"></script>
+<script src="https://unpkg.com/@zxing/browser@0.2.1/umd/zxing-browser.min.js"
+        integrity="sha384-HRtzk9lZgkbSgvUyQrnfC/GxiXZgwaNyD7hC9wcXlsBpDhkS80ISl73juef2FRuf"
+        crossorigin="anonymous"></script>
 <script>
 /* qrcode-generator (MIT, Kazuhiko Arase) — embutido para QR offline na etiqueta */
 /* qrcode-generator v1.x — MIT, Kazuhiko Arase — embutido para funcionamento offline */
@@ -3251,6 +3298,29 @@ var qrcode = function() {
     .info-grid { grid-template-columns: 1fr; }
   }
 
+  /* AVISO DE VERSÃO NOVA */
+  .update-bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; font-size: 13.5px;
+    background: var(--blue-txt); color: #fff;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.18);
+  }
+  .update-bar[hidden] { display: none; }
+  .update-bar-btn {
+    font: inherit; font-weight: 600; cursor: pointer;
+    background: #fff; color: var(--blue-txt);
+    border: 0; border-radius: var(--radius); padding: 5px 14px;
+  }
+  .update-bar-fechar {
+    font: inherit; cursor: pointer; margin-left: auto;
+    background: none; border: 0; color: #fff; padding: 4px 6px; line-height: 1;
+  }
+  .update-bar-btn:focus-visible, .update-bar-fechar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  /* A barra nunca sai no papel — a impressão já esconde o resto do body,
+     mas esta é position:fixed e escaparia a essa regra. */
+  @media print { .update-bar { display: none !important; } }
+
   /* CAIXAS TABLE */
   .cx-wrap { overflow-x: auto; }
   table.cx { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -3261,8 +3331,17 @@ var qrcode = function() {
   .cod-link { background: none; border: none; padding: 0; font: inherit; font-family: 'Cascadia Code', 'Courier New', monospace; font-weight: 600; color: var(--blue-txt); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
   .cod-link:hover { color: var(--text); }
   table.cx td.muted { color: var(--text2); }
-  table.cx th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
-  table.cx th.sortable:hover { color: var(--text); }
+  table.cx th.sortable { user-select: none; white-space: nowrap; padding: 0; }
+  /* O botão é que é o alvo do clique e do foco; herda tudo do <th> para o
+     cabeçalho continuar a ver-se como texto e não como botão. Ocupa a
+     célula inteira para a área clicável não encolher. */
+  table.cx th.sortable .sort-btn {
+    font: inherit; color: inherit; background: none; border: 0;
+    padding: 4px 10px 6px 0; margin: 0; width: 100%; text-align: inherit;
+    cursor: pointer; white-space: nowrap;
+  }
+  table.cx th.sortable .sort-btn:hover { color: var(--text); }
+  table.cx th.sortable .sort-btn:focus-visible { outline: 2px solid var(--blue-txt); outline-offset: -2px; }
   table.cx tr.tr-destaque td { background: var(--blue-bg); }
 
   /* ÁREA (filtro na ficha de Serviço) */
@@ -3400,12 +3479,20 @@ var qrcode = function() {
 </head>
 <body>
 
+<!-- Aviso de versão nova. Fica escondido até o Service Worker novo tomar
+     conta da página (ver "controllerchange" no fim do script). -->
+<div id="update-bar" class="update-bar" role="status" hidden>
+  <span>Há uma versão nova desta app.</span>
+  <button type="button" class="update-bar-btn" onclick="location.reload()">Recarregar</button>
+  <button type="button" class="update-bar-fechar" onclick="document.getElementById('update-bar').hidden = true" aria-label="Fechar aviso">✕</button>
+</div>
+
 <header>
   <img src="icon-192.png" alt="" width="26" height="26" class="header-logo">
   <h1>Consulta de Artigos</h1>
   <div class="sep"></div>
   <span class="subtitle">Armazém · Posição · Supermercados · Caixas</span>
-  <span class="version">v1.51.0</span>
+  <span class="version">v1.52.0</span>
 </header>
 
 <div class="container">
@@ -4261,16 +4348,38 @@ function artigoDestacadoCod() {
 // desse tipo de caixa NESSE supermercado, porque superMap[].caixas já vem
 // agregado por (tipo de caixa, supermercado) desde o carregamento do
 // ficheiro — ver aggregateCaixas) e a posição em armazém.
+// Agrupa as caixas já agregadas de um artigo pelo nome do supermercado.
+// Existe para buildSupermercadoIndex não ter de varrer a lista inteira de
+// caixas uma vez por cada supermercado do artigo: era um .filter() dentro
+// do ciclo artigo x supermercado, ou seja artigos x supermercados x caixas
+// a cada tecla escrita na pesquisa. Agrupando uma vez por artigo, passa a
+// ser artigos x caixas.
+//
+// Os arrays devolvidos são partilhados por todas as linhas do índice que
+// digam respeito ao mesmo artigo e supermercado — quem os consome tem de
+// os copiar antes de ordenar (renderSuperGroupCard faz .slice().sort()).
+function agruparCaixasPorSupermercado(caixas) {
+  const porSuper = new Map();
+  for (const c of caixas || []) {
+    if (!porSuper.has(c.superNome)) porSuper.set(c.superNome, []);
+    porSuper.get(c.superNome).push(c);
+  }
+  return porSuper;
+}
+
 function buildSupermercadoIndex(q) {
   const idx = new Map(); // chave: cod+nome do supermercado
   Object.keys(superMap).forEach(cod => {
-    supersQueBatem(cod, q).forEach(sv => {
+    const supers = supersQueBatem(cod, q);
+    if (!supers.length) return;
+    const caixasPorSuper = agruparCaixasPorSupermercado(superMap[cod].caixas);
+    supers.forEach(sv => {
       const key = sv.cod + '|' + sv.nome;
       if (!idx.has(key)) idx.set(key, { cod: sv.cod, nome: sv.nome, grupo: sv.grupo, artigos: [] });
       idx.get(key).artigos.push({
         cod,
         nome: getNome(cod),
-        caixas: (superMap[cod].caixas || []).filter(c => c.superNome === sv.nome),
+        caixas: caixasPorSuper.get(sv.nome) || [],
         posicao: sv.posicao,
         posicaoTexto: sv.posicao || '',
         grupo: sv.grupo || '',
@@ -4345,6 +4454,26 @@ function destacarArtigoNaLista(artigos, cod) {
 function sortArrowHtml(field) {
   if (indexSortField !== field) return '';
   return indexSortDir === 'asc' ? ' \u25B2' : ' \u25BC';
+}
+
+// Cabeçalho de coluna ordenável do índice.
+//
+// O <th> era ele próprio o alvo do clique (th.sortable + onclick), o que
+// deixava a ordenação fora do alcance de quem navega por teclado: um <th>
+// não é focável e não anuncia que faz alguma coisa. Aqui o <th> volta a ser
+// só a célula — leva o aria-sort, que é o atributo próprio para dizer por
+// que coluna a tabela está ordenada e em que sentido — e o que se clica é um
+// <button> lá dentro, focável e activável por Enter/Espaço sem código nenhum
+// à mistura. O CSS (.sort-btn) tira-lhe o aspecto de botão, para o cabeçalho
+// continuar a ver-se exactamente como antes.
+//
+// rotuloHtml entra já escapado por quem chama (a coluna da posição muda de
+// nome conforme a ficha).
+function thOrdenavelHtml(campo, rotuloHtml) {
+  const sentido = indexSortField !== campo ? 'none' : (indexSortDir === 'asc' ? 'ascending' : 'descending');
+  return `<th class="sortable" aria-sort="${sentido}">` +
+    `<button type="button" class="sort-btn" onclick="setIndexSort('${campo}')">` +
+    `${rotuloHtml}${sortArrowHtml(campo)}</button></th>`;
 }
 
 function setIndexSort(field) {
@@ -5952,10 +6081,10 @@ function renderSuperGroupCard(entry, tipo) {
         <table class="cx">
           <thead><tr>
             ${isSuper ? '<th class="etq-lote-td" title="Marcar artigos para emitir etiquetas">🏷</th>' : ''}
-            <th class="sortable" onclick="setIndexSort('cod')">Código${sortArrowHtml('cod')}</th>
-            <th class="sortable" onclick="setIndexSort('artigo')">Artigo${sortArrowHtml('artigo')}</th>
+            ${thOrdenavelHtml('cod', 'Código')}
+            ${thOrdenavelHtml('artigo', 'Artigo')}
             <th>Cx / Nº Cx / QT Cx</th>
-            <th class="sortable" onclick="setIndexSort('posicao')">${escHtml(posLabel)}${sortArrowHtml('posicao')}</th>
+            ${thOrdenavelHtml('posicao', escHtml(posLabel))}
           </tr></thead>
           <tbody>${linhas}</tbody>
         </table>
@@ -6154,6 +6283,26 @@ function renderCard(cod) {
 // página, e protegido por "in navigator" para não rebentar em navegadores
 // sem suporte a Service Worker.
 if ('serviceWorker' in navigator) {
+  // Havia já um Service Worker a servir esta página quando ela abriu?
+  // Isto tem de ser lido AGORA, e não dentro do "controllerchange": numa
+  // primeira visita o clients.claim() do sw.js também dispara esse evento,
+  // e sem esta distinção a app pedia para recarregar logo à primeira
+  // abertura, sem haver versão nova nenhuma.
+  const jaTinhaControlador = !!navigator.serviceWorker.controller;
+
+  // O sw.js faz skipWaiting() + clients.claim(), por isso uma versão nova
+  // passa a activa sem esperar por nada — mas a página que já está aberta
+  // continua a ser o HTML antigo, agora servido por um Service Worker novo.
+  // Sem este aviso, esse estado misto não tinha sinal nenhum e durava até
+  // alguém fechar e reabrir a app por outro motivo. Não se recarrega
+  // sozinho de propósito: podia apagar uma pesquisa ou uma selecção de
+  // etiquetas a meio.
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!jaTinhaControlador) return;
+    const barra = document.getElementById('update-bar');
+    if (barra) barra.hidden = false;
+  });
+
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(err => {
       console.warn('Falha ao registar o Service Worker (a app continua a funcionar normalmente, só sem modo offline):', err);

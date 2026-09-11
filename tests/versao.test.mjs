@@ -87,11 +87,27 @@ test('a cópia versionada é igual ao index.html', () => {
   );
 });
 
+test('as bibliotecas de CDN vêm com integrity (SRI)', () => {
+  // Sem integrity, quem controlar a CDN — ou qualquer intermediário na rede
+  // — serve outro JavaScript, que corre com acesso total aos ficheiros do
+  // armazém carregados na app. O xlsx saiu para dentro do repositório por
+  // causa de CVEs; estas continuam em CDN e o integrity é o que resta.
+  // Também é preciso crossorigin: sem ele o browser nem chega a verificar o
+  // resumo num pedido para outro domínio.
+  const tags = index.match(/<script[^>]+src="https:\/\/[^"]+"[^>]*>/g) || [];
+  assert.ok(tags.length > 0, 'não encontrei bibliotecas de CDN — o teste ficou a olhar para o sítio errado');
+  for (const tag of tags) {
+    const src = tag.match(/src="([^"]+)"/)[1];
+    assert.match(tag, /integrity="sha(256|384|512)-[A-Za-z0-9+/=]+"/, `${src} sem integrity`);
+    assert.match(tag, /crossorigin="anonymous"/, `${src} com integrity mas sem crossorigin — o integrity não é verificado`);
+  }
+});
+
 test('as bibliotecas de CDN vêm em versão fixa, não em "@latest"', () => {
   // "@latest" já partiu o scan uma vez sem nada ter mudado neste repositório
   // (ver changelog da v1.27.0), e o unpkg responde-lhe com um redirect, que o
   // service worker não consegue guardar em cache.
-  const tags = index.match(/<script src="https:\/\/[^"]+"/g) || [];
+  const tags = index.match(/<script[^>]+src="https:\/\/[^"]+"/g) || [];
   for (const tag of tags) {
     assert.ok(!tag.includes('@latest'), `biblioteca sem versão fixa: ${tag}`);
     assert.match(tag, /@\d+\.\d+\.\d+/, `biblioteca sem versão fixa: ${tag}`);
@@ -102,7 +118,7 @@ test('todas as bibliotecas de CDN do index.html estão no precache do service wo
   // Uma biblioteca que o index.html carrega mas o sw.js não conhece funciona
   // com rede e desaparece sem ela — e o modo offline é metade do sentido
   // desta app num armazém.
-  const urls = [...index.matchAll(/<script src="(https:\/\/[^"]+)"/g)].map(m => m[1]);
+  const urls = [...index.matchAll(/<script[^>]+src="(https:\/\/[^"]+)"/g)].map(m => m[1]);
   assert.ok(urls.length > 0, 'não encontrei bibliotecas de CDN — o teste ficou a olhar para o sítio errado');
   for (const url of urls) {
     assert.ok(sw.includes(url), `${url} não está no PRECACHE_CDN do sw.js`);
