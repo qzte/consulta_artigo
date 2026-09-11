@@ -30,17 +30,36 @@ function verificar(nome, codigo) {
 
 const index = readFileSync(join(RAIZ, 'index.html'), 'utf8');
 
-// Só os <script> sem src (os embutidos); os que apontam para uma CDN não têm
-// corpo nenhum para verificar.
-const blocos = [...index.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+// Os comentários HTML saem primeiro. Sem isto, a palavra "<script>" escrita
+// dentro de um comentário — como está no bloco que explica as bibliotecas
+// vendorizadas — era apanhada como se fosse uma tag a sério, e o que ia
+// parar ao verificador era um pedaço de texto que não é JavaScript nenhum.
+// Deu um falso ALARME quando aconteceu; o que preocupa é o contrário, que o
+// mesmo engano mais à frente no ficheiro juntasse dois blocos num só e
+// deixasse passar um erro a sério.
+const semComentarios = index.replace(/<!--[\s\S]*?-->/g, '');
+
+// Só os <script> sem src (os embutidos); os que apontam para um ficheiro
+// não têm corpo nenhum para verificar.
+const blocos = [...semComentarios.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
 
 if (blocos.length === 0) {
   console.error('Não encontrei nenhum <script> embutido no index.html — a app não pode funcionar assim.');
   process.exit(1);
 }
 
-console.log(`A verificar ${blocos.length} bloco(s) de script do index.html e o sw.js:`);
+// Os ficheiros .js locais que o index.html carrega por src. Desde a v1.53.0
+// há quatro (xlsx, tesseract, zxing, qrcode) e o qrcode saiu de dentro deste
+// HTML, recortado por número de linha — precisamente o tipo de operação que
+// pode deixar um ficheiro truncado a meio de uma função. Um ficheiro
+// vendorizado cortado não dá erro nenhum a copiar: dá uma app partida.
+const locais = [...semComentarios.matchAll(/<script[^>]+src="\.\/([^"]+)"/g)].map(m => m[1]);
+
+console.log(`A verificar ${blocos.length} bloco(s) embutido(s), ${locais.length} ficheiro(s) local(is) e o sw.js:`);
 blocos.forEach((codigo, i) => verificar(`index.html <script> #${i + 1}`, codigo));
+for (const nome of locais) {
+  verificar(nome, readFileSync(join(RAIZ, nome), 'utf8'));
+}
 verificar('sw.js', readFileSync(join(RAIZ, 'sw.js'), 'utf8'));
 
 if (problemas.length) {

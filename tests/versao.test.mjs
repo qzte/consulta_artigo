@@ -11,7 +11,8 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { lerIndexHtml, lerFicheiro, caminhoRaiz } from './harness.mjs';
 
 const index = lerIndexHtml();
@@ -87,40 +88,52 @@ test('a cópia versionada é igual ao index.html', () => {
   );
 });
 
-test('as bibliotecas de CDN vêm com integrity (SRI)', () => {
-  // Sem integrity, quem controlar a CDN — ou qualquer intermediário na rede
-  // — serve outro JavaScript, que corre com acesso total aos ficheiros do
-  // armazém carregados na app. O xlsx saiu para dentro do repositório por
-  // causa de CVEs; estas continuam em CDN e o integrity é o que resta.
-  // Também é preciso crossorigin: sem ele o browser nem chega a verificar o
-  // resumo num pedido para outro domínio.
-  const tags = index.match(/<script[^>]+src="https:\/\/[^"]+"[^>]*>/g) || [];
-  assert.ok(tags.length > 0, 'não encontrei bibliotecas de CDN — o teste ficou a olhar para o sítio errado');
-  for (const tag of tags) {
-    const src = tag.match(/src="([^"]+)"/)[1];
-    assert.match(tag, /integrity="sha(256|384|512)-[A-Za-z0-9+/=]+"/, `${src} sem integrity`);
-    assert.match(tag, /crossorigin="anonymous"/, `${src} com integrity mas sem crossorigin — o integrity não é verificado`);
+test('o index.html não carrega nenhum script de outro domínio', () => {
+  // Desde a v1.53.0 não há bibliotecas de CDN nenhumas: o xlsx, o Tesseract,
+  // o ZXing e o qrcode são todos ficheiros deste repositório. Este teste é o
+  // que impede uma tag de CDN de voltar a entrar sem se dar por ela — e com
+  // ela voltariam os três problemas que a mudança resolveu: um terceiro a
+  // servir JavaScript com acesso aos ficheiros do armazém, uma rede que
+  // bloqueia o domínio a tirar o scan, e a primeira abertura sem rede a
+  // falhar.
+  const externos = index.match(/<script[^>]+src="(?!\.\/)[^"]*"/g) || [];
+  assert.deepEqual(externos, [], 'apareceu um <script> que não é deste repositório');
+});
+
+test('todos os scripts locais do index.html existem e estão no precache', () => {
+  // Um ficheiro referenciado mas não guardado em cache funciona com rede e
+  // desaparece sem ela — e o modo offline é metade do sentido desta app num
+  // armazém. Um ficheiro referenciado que nem sequer existe é uma app que
+  // abre em branco.
+  const locais = [...index.matchAll(/<script[^>]+src="\.\/([^"]+)"/g)].map(m => m[1]);
+  assert.ok(locais.length >= 4, `esperava pelo menos 4 scripts locais, encontrei ${locais.length}`);
+  for (const nome of locais) {
+    assert.ok(existsSync(join(caminhoRaiz, nome)), `${nome} é carregado pelo index.html mas não existe no repositório`);
+    assert.ok(sw.includes(`'./${nome}'`), `${nome} não está no PRECACHE_LOCAL do sw.js`);
   }
 });
 
-test('as bibliotecas de CDN vêm em versão fixa, não em "@latest"', () => {
-  // "@latest" já partiu o scan uma vez sem nada ter mudado neste repositório
-  // (ver changelog da v1.27.0), e o unpkg responde-lhe com um redirect, que o
-  // service worker não consegue guardar em cache.
-  const tags = index.match(/<script[^>]+src="https:\/\/[^"]+"/g) || [];
-  for (const tag of tags) {
-    assert.ok(!tag.includes('@latest'), `biblioteca sem versão fixa: ${tag}`);
-    assert.match(tag, /@\d+\.\d+\.\d+/, `biblioteca sem versão fixa: ${tag}`);
-  }
+test('o worker do Tesseract está no repositório e no precache', () => {
+  // Não é carregado pelo index.html — é o próprio Tesseract que lhe vai
+  // buscar em runtime, pelo workerPath. Escapa por isso ao teste de cima, e
+  // sem ele o OCR não arranca sem rede.
+  assert.ok(existsSync(join(caminhoRaiz, 'worker.min.js')), 'falta o worker.min.js');
+  assert.ok(sw.includes("'./worker.min.js'"), 'o worker.min.js não está no PRECACHE_LOCAL do sw.js');
+  assert.match(index, /workerPath:\s*'\.\/worker\.min\.js'/, 'o index.html não aponta o Tesseract ao worker local');
 });
 
-test('todas as bibliotecas de CDN do index.html estão no precache do service worker', () => {
-  // Uma biblioteca que o index.html carrega mas o sw.js não conhece funciona
-  // com rede e desaparece sem ela — e o modo offline é metade do sentido
-  // desta app num armazém.
-  const urls = [...index.matchAll(/<script[^>]+src="(https:\/\/[^"]+)"/g)].map(m => m[1]);
-  assert.ok(urls.length > 0, 'não encontrei bibliotecas de CDN — o teste ficou a olhar para o sítio errado');
-  for (const url of urls) {
-    assert.ok(sw.includes(url), `${url} não está no PRECACHE_CDN do sw.js`);
+test('as bibliotecas vendorizadas são as versões que os comentários dizem ser', () => {
+  // O comentário do index.html diz quais são as versões e como verificá-las
+  // com npm pack. Se alguém subir um ficheiro sem corrigir o texto, o
+  // próximo a lá ir verifica a versão errada e conclui que está tudo bem.
+  assert.match(index, /Tesseract\.js 5\.1\.1 \(Apache-2\.0\) e @zxing\/browser 0\.2\.1 \(MIT\)/);
+  assert.match(index, /npm pack tesseract\.js@5\.1\.1/);
+});
+
+test('as licenças das bibliotecas vendorizadas acompanham os ficheiros', () => {
+  // Vendorizar código de terceiros obriga a trazer a licença junto.
+  for (const f of ['tesseract.js-LICENSE.md', 'zxing-browser-LICENSE.txt',
+                   'tesseract.min.js.LICENSE.txt', 'worker.min.js.LICENSE.txt']) {
+    assert.ok(existsSync(join(caminhoRaiz, f)), `falta ${f}`);
   }
 });
