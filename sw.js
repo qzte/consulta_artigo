@@ -26,7 +26,7 @@
 // antigos indefinidamente, mesmo com o index.html novo. O activate apaga as
 // caches com nome diferente deste, e é aí que as cópias antigas
 // desaparecem do dispositivo.
-const CACHE_NAME = 'consulta-artigos-v1.58.0';
+const CACHE_NAME = 'consulta-artigos-v1.59.0';
 
 // Página a servir offline quando a rede falha numa navegação.
 const OFFLINE_URL = './index.html';
@@ -59,6 +59,12 @@ const PRECACHE_LOCAL = [
   // Tesseract que lhe vai buscar em runtime, pelo workerPath que
   // abrirScanAoVivo lhe passa.
   './worker.min.js',
+  // O motor OCR (com e sem SIMD). Como o worker.min.js acima, não é
+  // carregado por nenhum <script src> nem pedido nenhum: vai embutido em
+  // base64 no index.html e é servido ao worker via getCoreImportScriptsShim()
+  // — está aqui só pela mesma convenção do worker.min.js.
+  './tesseract-core-lstm.wasm.js',
+  './tesseract-core-simd-lstm.wasm.js',
   './zxing-browser.min.js',
   './qrcode.js',
 ];
@@ -74,48 +80,47 @@ const PRECACHE_LOCAL = [
 // Desde a v1.53.0 esta lista está VAZIA, e isso é de propósito: as três
 // bibliotecas que aqui estavam (Tesseract, o seu worker e o ZXing) passaram
 // a ser ficheiros deste repositório e subiram para a lista obrigatória.
+// Desde a v1.58.0 o motor OCR (tesseract-core[-simd]-lstm.wasm.js) segue o
+// mesmo caminho: vai embutido em base64 no index.html (ver VENDOR.md e
+// getCoreImportScriptsShim() no index.html), não precisa de estar aqui.
 //
-// O que AINDA vem de CDN é o que o Tesseract carrega por sua conta quando o
-// OCR corre pela primeira vez: o motor (tesseract-core[-simd]-lstm.wasm.js,
-// ~3.9 MB) e os dados de idioma (eng.traineddata.gz, ~2.9 MB). Não estão
-// aqui porque são ~7 MB que toda a gente descarregaria na instalação,
-// incluindo quem nunca usa o OCR. Continuam a ser guardados pelo
-// handleAsset na primeira utilização COM internet — ou seja, o OCR é a
-// única parte do scan que ainda exige ter havido rede uma vez. A leitura de
-// códigos de barras e do QR da etiqueta (ZXing) já não exige nada disso.
+// O que AINDA vem de CDN é só os dados de idioma "eng" que o Tesseract
+// carrega por sua conta quando o OCR corre pela primeira vez
+// (eng.traineddata.gz, ~3 MB). Não está aqui porque isso é ~3 MB que toda a
+// gente descarregaria na instalação, incluindo quem nunca usa o OCR.
+// Continua a ser guardado pelo handleAsset na primeira utilização COM
+// internet, com o SHA-256 verificado (ver TESSERACT_CDN_HASHES) — ou seja,
+// os dados de idioma são a única parte do scan que ainda exige ter havido
+// rede uma vez. A leitura de códigos de barras e do QR da etiqueta (ZXing)
+// e o próprio motor OCR já não exigem nada disso.
 const PRECACHE_CDN = [];
 
-// Hashes SHA-256 (hex) dos ficheiros que o Tesseract.js vai buscar por sua
-// conta ao cdn.jsdelivr.net na primeira utilização do OCR: o motor (WASM,
-// modo LSTM_ONLY, com e sem SIMD) e os dados de idioma "eng" (modelo
-// 4.0.0, não o "best_int", usado só em OEM legado — ver worker.min.js).
-// Fixos à versão do Tesseract usada em tesseract.min.js/worker.min.js
-// (5.1.1) e obtidos a partir do próprio pacote npm, tal como o VENDOR.md já
-// faz para as bibliotecas vendorizadas:
-//   npm pack tesseract.js-core@5.1.1 && tar -xzf tesseract.js-core-5.1.1.tgz
-//   sha256sum package/tesseract-core-lstm.wasm.js package/tesseract-core-simd-lstm.wasm.js
+// Hash SHA-256 (hex) do ficheiro que o Tesseract.js ainda vai buscar por
+// sua conta ao cdn.jsdelivr.net na primeira utilização do OCR: os dados de
+// idioma "eng" (modelo "4.0.0_best_int" — é o que se usa em modo
+// LSTM_ONLY, o omisso do Tesseract; o "4.0.0" simples, maior, é só para o
+// OEM legado — ver worker.min.js). Fixo à versão do Tesseract usada em
+// tesseract.min.js/worker.min.js (5.1.1) e obtido a partir do próprio
+// pacote npm, tal como o VENDOR.md já faz para as bibliotecas
+// vendorizadas:
 //   npm pack @tesseract.js-data/eng@1.0.0 && tar -xzf tesseract.js-data-eng-1.0.0.tgz
-//   sha256sum package/4.0.0/eng.traineddata.gz
+//   sha256sum package/4.0.0_best_int/eng.traineddata.gz
 //
 // Sem isto, quem controlasse o CDN — ou um intermediário na rede — no
-// preciso momento da primeira utilização do OCR podia servir outro WASM,
-// que passaria a correr com acesso total à página e a ficar em cache
-// indefinidamente (handleAsset serve sempre da cache depois da primeira
-// vez). É o mesmo raciocínio que já levou a vendorizar o resto das
-// bibliotecas (ver VENDOR.md) — este é o único ficheiro que ainda vem de
-// fora, por isso é o único que ainda precisa de verificação em runtime.
+// preciso momento da primeira utilização do OCR podia servir outro
+// ficheiro, que passaria a ficar em cache indefinidamente (handleAsset
+// serve sempre da cache depois da primeira vez). É o mesmo raciocínio que
+// já levou a vendorizar o resto das bibliotecas e o motor OCR (ver
+// VENDOR.md) — este é o único ficheiro que ainda vem de fora, por isso é o
+// único que ainda precisa de verificação em runtime.
 //
-// Atualizar a versão do Tesseract sem atualizar estes hashes faz o OCR
-// parar de funcionar (handleAsset passa a rejeitar o ficheiro novo) — é o
+// Atualizar a versão do Tesseract sem atualizar este hash faz o OCR parar
+// de funcionar (handleAsset passa a rejeitar o ficheiro novo) — é o
 // comportamento certo: falhar de forma visível é preferível a servir um
 // ficheiro sem verificação nenhuma.
 const TESSERACT_CDN_HASHES = {
-  '/npm/tesseract.js-core@v5.1.1/tesseract-core-lstm.wasm.js':
-    '8f04aa0cc81e7bde33f80e92fa01a7a665f0b4884d098acf5de9c7104a11dfaa',
-  '/npm/tesseract.js-core@v5.1.1/tesseract-core-simd-lstm.wasm.js':
-    'ce20eda9533cbed1e6c2b4276fbae1e0adc61b6754b5513084be601787b457cf',
-  '/npm/@tesseract.js-data/eng/4.0.0/eng.traineddata.gz':
-    'ed350f3752f81ee8f38769edc14d92d997dababe23b565c59879372cc46a2468',
+  '/npm/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz':
+    '45b4cb346724ac1774f1c36f42f182b887bcdb28ebe63e6fff90ac41f3fcff91',
 };
 
 // Calcula o SHA-256 (hex) de um ArrayBuffer, para comparar com
