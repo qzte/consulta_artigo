@@ -12,11 +12,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { carregarDoIndex } from './harness.mjs';
 
-const { col, validarCabecalho } = carregarDoIndex([
+const { col, v, validarCabecalho, validarLinhas } = carregarDoIndex([
   'col',
+  'v',
   'COLUNAS_OBRIGATORIAS',
   'NOME_TIPO',
   'validarCabecalho',
+  'validarLinhas',
 ]);
 
 // Cabeçalhos como saem mesmo dos dois exports, na ordem original.
@@ -101,4 +103,33 @@ test('validarCabecalho() nomeia as colunas em falta num ficheiro que não é nen
 test('validarCabecalho() não deixa passar um ficheiro a que falte só uma coluna', () => {
   const semSupermercado = CAB_SUPER.filter(h => h !== 'Supermercado' && h !== 'Código Supermercado');
   assert.match(validarCabecalho(semSupermercado, 'super'), /"Supermercado"/);
+});
+
+test('validarLinhas() aceita linhas normais', () => {
+  const linhas = [['A1', 'Artigo 1', '', 'Super A'], ['A2', 'Artigo 2', '', 'Super B']];
+  assert.equal(validarLinhas(CAB_SUPER.slice(0, 4), linhas, 'super', 'ficheiro.xlsx'), '');
+});
+
+test('validarLinhas() rejeita um ficheiro sem nenhuma linha de dados', () => {
+  // O caso do export truncado ou filtrado por engano: o cabeçalho está
+  // certo, mas não há nada a seguir. Sem isto, superMap/armMap ficavam
+  // vazios em silêncio — só "0 artigos" no rodapé, sem dizer porquê.
+  const msg = validarLinhas(CAB_SUPER, [], 'super', 'ficheiro.xlsx');
+  assert.match(msg, /nenhuma linha de dados/);
+  assert.match(msg, /ficheiro\.xlsx/);
+  assert.match(msg, /dados já carregados foram mantidos/);
+});
+
+test('validarLinhas() rejeita linhas em que nenhuma tem código de artigo', () => {
+  // Há linhas, mas processSuperFile/processArmFile ignoram uma a uma as
+  // que não têm código — o mesmo "0 artigos" silencioso, só que só se via
+  // depois de processar o ficheiro todo.
+  const linhas = [['', 'Artigo 1', '', 'Super A'], ['', 'Artigo 2', '', 'Super B']];
+  const msg = validarLinhas(CAB_SUPER.slice(0, 4), linhas, 'super', 'ficheiro.xlsx');
+  assert.match(msg, /nenhuma com "Código Artigo" preenchido/);
+});
+
+test('validarLinhas() basta uma linha com código para aceitar o ficheiro', () => {
+  const linhas = [['', 'Artigo 1', '', 'Super A'], ['A2', 'Artigo 2', '', 'Super B']];
+  assert.equal(validarLinhas(CAB_SUPER.slice(0, 4), linhas, 'super', 'ficheiro.xlsx'), '');
 });
