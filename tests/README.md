@@ -38,6 +38,8 @@ falta em vez de deixar o teste passar sobre o vazio.
 | `sort-supermercados.test.mjs` | Ordenação alfabética dos supermercados |
 | `versao.test.mjs` | Coerência de uma versão publicada (ver abaixo) |
 | `verificar-sintaxe.mjs` | O `<script>` do `index.html` e o `sw.js` compilam |
+| `hash-bibliotecas.test.mjs` | SHA-256 das bibliotecas vendorizadas contra hashes fixos (ver VENDOR.md) |
+| `sem-innerHTML-direto.test.mjs` | Toda a escrita em `innerHTML` no código próprio passa por `setHTML()` |
 
 O `versao.test.mjs` existe porque publicar uma versão significa mexer à mão em
 oito sítios (cabeçalho, changelog, `<title>`, meta description, rodapé, nome
