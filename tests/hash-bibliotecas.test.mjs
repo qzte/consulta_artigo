@@ -28,10 +28,6 @@ import { lerFicheiro } from './harness.mjs';
 
 const HASHES = {
   'xlsx.full.min.js': 'cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41',
-  'tesseract.min.js': 'a8e29918d098b2b06e1012bdaeffb4aec0445c5d5654709023e0bd1f442a80e8',
-  'worker.min.js': 'aca1229639fc9907d86f96e825955a2b7c5716d17f3bc3acd71f9c7ab66181fc',
-  'tesseract-core-lstm.wasm.js': '8f04aa0cc81e7bde33f80e92fa01a7a665f0b4884d098acf5de9c7104a11dfaa',
-  'tesseract-core-simd-lstm.wasm.js': 'ce20eda9533cbed1e6c2b4276fbae1e0adc61b6754b5513084be601787b457cf',
   'zxing-browser.min.js': '066bc34edfcdd4a33f0964aeec967752a0dea1ccaf36e58e319ac9fcb5070f6a',
   'qrcode.js': '980b98b438db6f5c58354fa9166e9371bce2c8ab053a0ca546e091f903011ec7',
 };
