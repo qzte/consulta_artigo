@@ -134,6 +134,21 @@ test('o worker do Tesseract está embutido em base64 e servido por um blob: URL'
   assert.match(index, /workerPath:\s*getWorkerBlobUrl\(\)/, 'o index.html não aponta o Tesseract para o blob: URL do worker embutido');
 });
 
+test('o motor OCR (com e sem SIMD) está embutido em base64 e servido via importScripts()', () => {
+  // Mesma razão do worker: um caminho relativo não é carregável quando a
+  // página é aberta com file://. getCoreImportScriptsShim() intercepta o
+  // importScripts() que o Tesseract faz para carregar o motor e serve-o a
+  // partir do que já está embutido, sem tocar em rede — ver sw.js e
+  // VENDOR.md.
+  for (const nome of ['tesseract-core-lstm.wasm.js', 'tesseract-core-simd-lstm.wasm.js']) {
+    assert.ok(existsSync(join(caminhoRaiz, nome)), `falta o ${nome}`);
+    const b64 = readFileSync(join(caminhoRaiz, nome)).toString('base64');
+    assert.ok(index.includes(b64), `${nome} embutido no index.html não coincide, em base64, com o ficheiro do repositório`);
+    assert.ok(sw.includes(`'./${nome}'`), `${nome} não está no PRECACHE_LOCAL do sw.js`);
+  }
+  assert.match(index, /corePath:\s*'\.'/, "o index.html não passa corePath: '.' ao Tesseract.createWorker");
+});
+
 test('as bibliotecas vendorizadas são as versões que os comentários dizem ser', () => {
   // O comentário do index.html diz quais são as versões e como verificá-las
   // com npm pack. Se alguém subir um ficheiro sem corrigir o texto, o
