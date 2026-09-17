@@ -26,7 +26,7 @@
 // antigos indefinidamente, mesmo com o index.html novo. O activate apaga as
 // caches com nome diferente deste, e é aí que as cópias antigas
 // desaparecem do dispositivo.
-const CACHE_NAME = 'consulta-artigos-v1.54.0';
+const CACHE_NAME = 'consulta-artigos-v1.55.0';
 
 // Página a servir offline quando a rede falha numa navegação.
 const OFFLINE_URL = './index.html';
@@ -84,6 +84,46 @@ const PRECACHE_LOCAL = [
 // única parte do scan que ainda exige ter havido rede uma vez. A leitura de
 // códigos de barras e do QR da etiqueta (ZXing) já não exige nada disso.
 const PRECACHE_CDN = [];
+
+// Hashes SHA-256 (hex) dos ficheiros que o Tesseract.js vai buscar por sua
+// conta ao cdn.jsdelivr.net na primeira utilização do OCR: o motor (WASM,
+// modo LSTM_ONLY, com e sem SIMD) e os dados de idioma "eng" (modelo
+// 4.0.0, não o "best_int", usado só em OEM legado — ver worker.min.js).
+// Fixos à versão do Tesseract usada em tesseract.min.js/worker.min.js
+// (5.1.1) e obtidos a partir do próprio pacote npm, tal como o VENDOR.md já
+// faz para as bibliotecas vendorizadas:
+//   npm pack tesseract.js-core@5.1.1 && tar -xzf tesseract.js-core-5.1.1.tgz
+//   sha256sum package/tesseract-core-lstm.wasm.js package/tesseract-core-simd-lstm.wasm.js
+//   npm pack @tesseract.js-data/eng@1.0.0 && tar -xzf tesseract.js-data-eng-1.0.0.tgz
+//   sha256sum package/4.0.0/eng.traineddata.gz
+//
+// Sem isto, quem controlasse o CDN — ou um intermediário na rede — no
+// preciso momento da primeira utilização do OCR podia servir outro WASM,
+// que passaria a correr com acesso total à página e a ficar em cache
+// indefinidamente (handleAsset serve sempre da cache depois da primeira
+// vez). É o mesmo raciocínio que já levou a vendorizar o resto das
+// bibliotecas (ver VENDOR.md) — este é o único ficheiro que ainda vem de
+// fora, por isso é o único que ainda precisa de verificação em runtime.
+//
+// Atualizar a versão do Tesseract sem atualizar estes hashes faz o OCR
+// parar de funcionar (handleAsset passa a rejeitar o ficheiro novo) — é o
+// comportamento certo: falhar de forma visível é preferível a servir um
+// ficheiro sem verificação nenhuma.
+const TESSERACT_CDN_HASHES = {
+  '/npm/tesseract.js-core@v5.1.1/tesseract-core-lstm.wasm.js':
+    '8f04aa0cc81e7bde33f80e92fa01a7a665f0b4884d098acf5de9c7104a11dfaa',
+  '/npm/tesseract.js-core@v5.1.1/tesseract-core-simd-lstm.wasm.js':
+    'ce20eda9533cbed1e6c2b4276fbae1e0adc61b6754b5513084be601787b457cf',
+  '/npm/@tesseract.js-data/eng/4.0.0/eng.traineddata.gz':
+    'ed350f3752f81ee8f38769edc14d92d997dababe23b565c59879372cc46a2468',
+};
+
+// Calcula o SHA-256 (hex) de um ArrayBuffer, para comparar com
+// TESSERACT_CDN_HASHES.
+async function sha256Hex(buffer) {
+  const digest = await crypto.subtle.digest('SHA-256', buffer);
+  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 // Guarda uma resposta em cache. cache.put() recusa respostas
 // redirecionadas (response.redirected), por isso nesse caso guarda-se o
@@ -162,7 +202,25 @@ async function handleAsset(request) {
   const cached = await cache.match(request);
   if (cached) return cached;
   try {
+    const url = new URL(request.url);
+    const hashEsperado = url.hostname === 'cdn.jsdelivr.net' ? TESSERACT_CDN_HASHES[url.pathname] : undefined;
+
+    if (!hashEsperado) {
+      const resposta = await fetch(request);
+      await guardarNaCache(cache, request, resposta);
+      return resposta;
+    }
+
+    // Ficheiro do motor/dados do Tesseract vindo do CDN: só se guarda e
+    // devolve depois de o hash bater certo. Um ficheiro com hash errado
+    // (CDN comprometido, intermediário na rede, ou versão do Tesseract
+    // subida sem atualizar TESSERACT_CDN_HASHES) nunca chega a ser
+    // executado nem cacheado.
     const resposta = await fetch(request);
+    if (!resposta.ok) return resposta;
+    const corpo = await resposta.clone().arrayBuffer();
+    const hashReal = await sha256Hex(corpo);
+    if (hashReal !== hashEsperado) return Response.error();
     await guardarNaCache(cache, request, resposta);
     return resposta;
   } catch (err) {
