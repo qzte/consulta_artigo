@@ -11,7 +11,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { lerIndexHtml, lerFicheiro, caminhoRaiz } from './harness.mjs';
 
@@ -100,26 +100,38 @@ test('o index.html não carrega nenhum script de outro domínio', () => {
   assert.deepEqual(externos, [], 'apareceu um <script> que não é deste repositório');
 });
 
-test('todos os scripts locais do index.html existem e estão no precache', () => {
-  // Um ficheiro referenciado mas não guardado em cache funciona com rede e
-  // desaparece sem ela — e o modo offline é metade do sentido desta app num
-  // armazém. Um ficheiro referenciado que nem sequer existe é uma app que
-  // abre em branco.
-  const locais = [...index.matchAll(/<script[^>]+src="\.\/([^"]+)"/g)].map(m => m[1]);
-  assert.ok(locais.length >= 4, `esperava pelo menos 4 scripts locais, encontrei ${locais.length}`);
-  for (const nome of locais) {
-    assert.ok(existsSync(join(caminhoRaiz, nome)), `${nome} é carregado pelo index.html mas não existe no repositório`);
+test('as bibliotecas vendorizadas estão embutidas em linha no index.html', () => {
+  // Desde que o ficheiro passou a ser aberto também directamente (file://,
+  // fora de um servidor), um <script src="./..."> deixa de resolver: o
+  // browser bloqueia-o por CORS ou nem sequer o encontra se só o HTML foi
+  // descarregado. Por isso as bibliotecas vão coladas dentro de um <script>
+  // do próprio index.html, e não apenas referenciadas. Continuam também a
+  // existir como ficheiros no repositório — para o VENDOR.md, o precache do
+  // sw.js e para se confirmar aqui que a cópia embutida é exactamente igual
+  // ao ficheiro vendorizado (senão a embutida podia ficar desactualizada
+  // sem ninguém dar por isso).
+  const bibliotecas = ['xlsx.full.min.js', 'tesseract.min.js', 'zxing-browser.min.js', 'qrcode.js'];
+  for (const nome of bibliotecas) {
+    assert.ok(existsSync(join(caminhoRaiz, nome)), `${nome} não existe no repositório`);
+    const conteudo = readFileSync(join(caminhoRaiz, nome), 'utf8');
+    assert.ok(index.includes(conteudo), `${nome} não está embutido tal e qual num <script> do index.html`);
     assert.ok(sw.includes(`'./${nome}'`), `${nome} não está no PRECACHE_LOCAL do sw.js`);
   }
+  const comSrc = index.match(/<script[^>]+src="\.\/(?:xlsx\.full\.min\.js|tesseract\.min\.js|zxing-browser\.min\.js|qrcode\.js)"/);
+  assert.equal(comSrc, null, 'uma biblioteca vendorizada continua a ser carregada por <script src="..."> em vez de embutida');
 });
 
-test('o worker do Tesseract está no repositório e no precache', () => {
-  // Não é carregado pelo index.html — é o próprio Tesseract que lhe vai
-  // buscar em runtime, pelo workerPath. Escapa por isso ao teste de cima, e
-  // sem ele o OCR não arranca sem rede.
+test('o worker do Tesseract está embutido em base64 e servido por um blob: URL', () => {
+  // Não é carregado pelo index.html com um <script> — é o próprio Tesseract
+  // que lhe vai buscar em runtime, pelo workerPath. Um caminho relativo
+  // ('./worker.min.js') não é carregável como Worker quando a página é
+  // aberta com file://, por isso o ficheiro vai embutido em base64 e é
+  // transformado num blob: URL em runtime (ver getWorkerBlobUrl).
   assert.ok(existsSync(join(caminhoRaiz, 'worker.min.js')), 'falta o worker.min.js');
+  const workerB64 = readFileSync(join(caminhoRaiz, 'worker.min.js')).toString('base64');
+  assert.ok(index.includes(workerB64), 'o worker.min.js embutido no index.html não coincide, em base64, com o ficheiro do repositório');
   assert.ok(sw.includes("'./worker.min.js'"), 'o worker.min.js não está no PRECACHE_LOCAL do sw.js');
-  assert.match(index, /workerPath:\s*'\.\/worker\.min\.js'/, 'o index.html não aponta o Tesseract ao worker local');
+  assert.match(index, /workerPath:\s*getWorkerBlobUrl\(\)/, 'o index.html não aponta o Tesseract para o blob: URL do worker embutido');
 });
 
 test('as bibliotecas vendorizadas são as versões que os comentários dizem ser', () => {
