@@ -26,7 +26,7 @@
 // antigos indefinidamente, mesmo com o index.html novo. O activate apaga as
 // caches com nome diferente deste, e é aí que as cópias antigas
 // desaparecem do dispositivo.
-const CACHE_NAME = 'consulta-artigos-v1.60.0';
+const CACHE_NAME = 'consulta-artigos-v1.62.0';
 
 // Página a servir offline quando a rede falha numa navegação.
 const OFFLINE_URL = './index.html';
@@ -49,27 +49,16 @@ const PRECACHE_LOCAL = [
   // propósito: sem esta biblioteca a app abre mas não lê ficheiro nenhum, por
   // isso é mesmo um erro de instalação e não uma degradação aceitável.
   './xlsx.full.min.js',
-  // Desde a v1.53.0 o Tesseract, o ZXing e o qrcode seguem o mesmo caminho
-  // que o xlsx: são ficheiros deste repositório (ver o comentário nas tags
-  // <script> do index.html). É isto que faz o scan e a etiqueta funcionarem
-  // já na PRIMEIRA abertura sem rede — vindos de CDN, só ficavam em cache
-  // depois de uma visita com internet.
-  './tesseract.min.js',
-  // O worker do Tesseract. Não é carregado pelo index.html: é o próprio
-  // Tesseract que lhe vai buscar em runtime, pelo workerPath que
-  // abrirScanAoVivo lhe passa.
-  './worker.min.js',
-  // O motor OCR (com e sem SIMD). Como o worker.min.js acima, não é
-  // carregado por nenhum <script src> nem pedido nenhum: vai embutido em
-  // base64 no index.html e é servido ao worker via getCoreImportScriptsShim()
-  // — está aqui só pela mesma convenção do worker.min.js.
-  './tesseract-core-lstm.wasm.js',
-  './tesseract-core-simd-lstm.wasm.js',
+  // Desde a v1.53.0 o ZXing e o qrcode seguem o mesmo caminho que o xlsx:
+  // são ficheiros deste repositório (ver o comentário nas tags <script> do
+  // index.html). É isto que faz o scan e a etiqueta funcionarem já na
+  // PRIMEIRA abertura sem rede — vindos de CDN, só ficavam em cache depois
+  // de uma visita com internet.
   './zxing-browser.min.js',
   './qrcode.js',
 ];
 
-// Ficheiros que a app vai buscar a uma CDN em runtime. Guardados em
+// Ficheiros que a app iria buscar a uma CDN em runtime. Guardados em
 // separado e em modo "best-effort": basta um deles estar em baixo, ou
 // bloqueado pela rede da instituição, para um cache.addAll único rebentar
 // por inteiro — e, com ele, TODO o precache, incluindo os ficheiros locais
@@ -77,58 +66,12 @@ const PRECACHE_LOCAL = [
 // domínios, o modo offline nunca chegava a funcionar e não havia nenhum
 // sinal disso.
 //
-// Desde a v1.53.0 esta lista está VAZIA, e isso é de propósito: as três
-// bibliotecas que aqui estavam (Tesseract, o seu worker e o ZXing) passaram
-// a ser ficheiros deste repositório e subiram para a lista obrigatória.
-// Desde a v1.58.0 o motor OCR (tesseract-core[-simd]-lstm.wasm.js) segue o
-// mesmo caminho: vai embutido em base64 no index.html (ver VENDOR.md e
-// getCoreImportScriptsShim() no index.html), não precisa de estar aqui.
-//
-// O que AINDA vem de CDN é só os dados de idioma "eng" que o Tesseract
-// carrega por sua conta quando o OCR corre pela primeira vez
-// (eng.traineddata.gz, ~3 MB). Não está aqui porque isso é ~3 MB que toda a
-// gente descarregaria na instalação, incluindo quem nunca usa o OCR.
-// Continua a ser guardado pelo handleAsset na primeira utilização COM
-// internet, com o SHA-256 verificado (ver TESSERACT_CDN_HASHES) — ou seja,
-// os dados de idioma são a única parte do scan que ainda exige ter havido
-// rede uma vez. A leitura de códigos de barras e do QR da etiqueta (ZXing)
-// e o próprio motor OCR já não exigem nada disso.
+// Esta lista está VAZIA: desde a v1.53.0 o xlsx, o ZXing e o qrcode são
+// todos ficheiros deste repositório, na lista obrigatória acima. Desde a
+// remoção do OCR (Tesseract), deixou também de haver o único ficheiro que
+// ainda vinha de CDN (os dados de idioma "eng"), e com ele saiu a
+// verificação de SHA-256 em runtime que só existia por causa dele.
 const PRECACHE_CDN = [];
-
-// Hash SHA-256 (hex) do ficheiro que o Tesseract.js ainda vai buscar por
-// sua conta ao cdn.jsdelivr.net na primeira utilização do OCR: os dados de
-// idioma "eng" (modelo "4.0.0_best_int" — é o que se usa em modo
-// LSTM_ONLY, o omisso do Tesseract; o "4.0.0" simples, maior, é só para o
-// OEM legado — ver worker.min.js). Fixo à versão do Tesseract usada em
-// tesseract.min.js/worker.min.js (5.1.1) e obtido a partir do próprio
-// pacote npm, tal como o VENDOR.md já faz para as bibliotecas
-// vendorizadas:
-//   npm pack @tesseract.js-data/eng@1.0.0 && tar -xzf tesseract.js-data-eng-1.0.0.tgz
-//   sha256sum package/4.0.0_best_int/eng.traineddata.gz
-//
-// Sem isto, quem controlasse o CDN — ou um intermediário na rede — no
-// preciso momento da primeira utilização do OCR podia servir outro
-// ficheiro, que passaria a ficar em cache indefinidamente (handleAsset
-// serve sempre da cache depois da primeira vez). É o mesmo raciocínio que
-// já levou a vendorizar o resto das bibliotecas e o motor OCR (ver
-// VENDOR.md) — este é o único ficheiro que ainda vem de fora, por isso é o
-// único que ainda precisa de verificação em runtime.
-//
-// Atualizar a versão do Tesseract sem atualizar este hash faz o OCR parar
-// de funcionar (handleAsset passa a rejeitar o ficheiro novo) — é o
-// comportamento certo: falhar de forma visível é preferível a servir um
-// ficheiro sem verificação nenhuma.
-const TESSERACT_CDN_HASHES = {
-  '/npm/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz':
-    '45b4cb346724ac1774f1c36f42f182b887bcdb28ebe63e6fff90ac41f3fcff91',
-};
-
-// Calcula o SHA-256 (hex) de um ArrayBuffer, para comparar com
-// TESSERACT_CDN_HASHES.
-async function sha256Hex(buffer) {
-  const digest = await crypto.subtle.digest('SHA-256', buffer);
-  return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 // Guarda uma resposta em cache. cache.put() recusa respostas
 // redirecionadas (response.redirected), por isso nesse caso guarda-se o
@@ -198,34 +141,12 @@ async function handleNavigation(request) {
 // Outros pedidos (ícones, manifest, scripts das bibliotecas): usa a cache
 // primeiro (mais rápido, funciona offline), e só vai à rede se ainda não
 // estiver guardado nada — guardando depois o resultado para a próxima.
-// Nota: isto também apanha, sem precisar de estar na lista PRECACHE_CDN,
-// os ficheiros que o Tesseract.js pede em runtime (o "worker" e os dados
-// de idioma "eng.traineddata") — ficam guardados automaticamente depois da
-// primeira vez que o scan for usado com internet.
 async function handleAsset(request) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
   if (cached) return cached;
   try {
-    const url = new URL(request.url);
-    const hashEsperado = url.hostname === 'cdn.jsdelivr.net' ? TESSERACT_CDN_HASHES[url.pathname] : undefined;
-
-    if (!hashEsperado) {
-      const resposta = await fetch(request);
-      await guardarNaCache(cache, request, resposta);
-      return resposta;
-    }
-
-    // Ficheiro do motor/dados do Tesseract vindo do CDN: só se guarda e
-    // devolve depois de o hash bater certo. Um ficheiro com hash errado
-    // (CDN comprometido, intermediário na rede, ou versão do Tesseract
-    // subida sem atualizar TESSERACT_CDN_HASHES) nunca chega a ser
-    // executado nem cacheado.
     const resposta = await fetch(request);
-    if (!resposta.ok) return resposta;
-    const corpo = await resposta.clone().arrayBuffer();
-    const hashReal = await sha256Hex(corpo);
-    if (hashReal !== hashEsperado) return Response.error();
     await guardarNaCache(cache, request, resposta);
     return resposta;
   } catch (err) {

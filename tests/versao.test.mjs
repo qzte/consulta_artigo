@@ -89,10 +89,10 @@ test('a cópia versionada é igual ao index.html', () => {
 });
 
 test('o index.html não carrega nenhum script de outro domínio', () => {
-  // Desde a v1.53.0 não há bibliotecas de CDN nenhumas: o xlsx, o Tesseract,
-  // o ZXing e o qrcode são todos ficheiros deste repositório. Este teste é o
-  // que impede uma tag de CDN de voltar a entrar sem se dar por ela — e com
-  // ela voltariam os três problemas que a mudança resolveu: um terceiro a
+  // Desde a v1.53.0 não há bibliotecas de CDN nenhumas: o xlsx, o ZXing e o
+  // qrcode são todos ficheiros deste repositório. Este teste é o que
+  // impede uma tag de CDN de voltar a entrar sem se dar por ela — e com ela
+  // voltariam os três problemas que a mudança resolveu: um terceiro a
   // servir JavaScript com acesso aos ficheiros do armazém, uma rede que
   // bloqueia o domínio a tirar o scan, e a primeira abertura sem rede a
   // falhar.
@@ -110,57 +110,43 @@ test('as bibliotecas vendorizadas estão embutidas em linha no index.html', () =
   // sw.js e para se confirmar aqui que a cópia embutida é exactamente igual
   // ao ficheiro vendorizado (senão a embutida podia ficar desactualizada
   // sem ninguém dar por isso).
-  const bibliotecas = ['xlsx.full.min.js', 'tesseract.min.js', 'zxing-browser.min.js', 'qrcode.js'];
+  const bibliotecas = ['xlsx.full.min.js', 'zxing-browser.min.js', 'qrcode.js'];
   for (const nome of bibliotecas) {
     assert.ok(existsSync(join(caminhoRaiz, nome)), `${nome} não existe no repositório`);
     const conteudo = readFileSync(join(caminhoRaiz, nome), 'utf8');
     assert.ok(index.includes(conteudo), `${nome} não está embutido tal e qual num <script> do index.html`);
     assert.ok(sw.includes(`'./${nome}'`), `${nome} não está no PRECACHE_LOCAL do sw.js`);
   }
-  const comSrc = index.match(/<script[^>]+src="\.\/(?:xlsx\.full\.min\.js|tesseract\.min\.js|zxing-browser\.min\.js|qrcode\.js)"/);
+  const comSrc = index.match(/<script[^>]+src="\.\/(?:xlsx\.full\.min\.js|zxing-browser\.min\.js|qrcode\.js)"/);
   assert.equal(comSrc, null, 'uma biblioteca vendorizada continua a ser carregada por <script src="..."> em vez de embutida');
-});
-
-test('o worker do Tesseract está embutido em base64 e servido por um blob: URL', () => {
-  // Não é carregado pelo index.html com um <script> — é o próprio Tesseract
-  // que lhe vai buscar em runtime, pelo workerPath. Um caminho relativo
-  // ('./worker.min.js') não é carregável como Worker quando a página é
-  // aberta com file://, por isso o ficheiro vai embutido em base64 e é
-  // transformado num blob: URL em runtime (ver getWorkerBlobUrl).
-  assert.ok(existsSync(join(caminhoRaiz, 'worker.min.js')), 'falta o worker.min.js');
-  const workerB64 = readFileSync(join(caminhoRaiz, 'worker.min.js')).toString('base64');
-  assert.ok(index.includes(workerB64), 'o worker.min.js embutido no index.html não coincide, em base64, com o ficheiro do repositório');
-  assert.ok(sw.includes("'./worker.min.js'"), 'o worker.min.js não está no PRECACHE_LOCAL do sw.js');
-  assert.match(index, /workerPath:\s*getWorkerBlobUrl\(\)/, 'o index.html não aponta o Tesseract para o blob: URL do worker embutido');
-});
-
-test('o motor OCR (com e sem SIMD) está embutido em base64 e servido via importScripts()', () => {
-  // Mesma razão do worker: um caminho relativo não é carregável quando a
-  // página é aberta com file://. getCoreImportScriptsShim() intercepta o
-  // importScripts() que o Tesseract faz para carregar o motor e serve-o a
-  // partir do que já está embutido, sem tocar em rede — ver sw.js e
-  // VENDOR.md.
-  for (const nome of ['tesseract-core-lstm.wasm.js', 'tesseract-core-simd-lstm.wasm.js']) {
-    assert.ok(existsSync(join(caminhoRaiz, nome)), `falta o ${nome}`);
-    const b64 = readFileSync(join(caminhoRaiz, nome)).toString('base64');
-    assert.ok(index.includes(b64), `${nome} embutido no index.html não coincide, em base64, com o ficheiro do repositório`);
-    assert.ok(sw.includes(`'./${nome}'`), `${nome} não está no PRECACHE_LOCAL do sw.js`);
-  }
-  assert.match(index, /corePath:\s*'\.'/, "o index.html não passa corePath: '.' ao Tesseract.createWorker");
 });
 
 test('as bibliotecas vendorizadas são as versões que os comentários dizem ser', () => {
   // O comentário do index.html diz quais são as versões e como verificá-las
   // com npm pack. Se alguém subir um ficheiro sem corrigir o texto, o
   // próximo a lá ir verifica a versão errada e conclui que está tudo bem.
-  assert.match(index, /Tesseract\.js 5\.1\.1 \(Apache-2\.0\) e @zxing\/browser 0\.2\.1 \(MIT\)/);
-  assert.match(index, /npm pack tesseract\.js@5\.1\.1/);
+  assert.match(index, /@zxing\/browser 0\.2\.1 \(MIT\)/);
+  assert.match(index, /npm pack @zxing\/browser@0\.2\.1/);
+});
+
+test('não há resquícios do OCR (Tesseract) removido', () => {
+  // O OCR foi removido: só a leitura por código de barras/QR (ZXing) fica.
+  // O changelog (histórico) continua com referências ao Tesseract, e essas
+  // ficam — o que este teste apanha é um regresso do CÓDIGO: uma chamada a
+  // Tesseract.*, um ficheiro vendorizado a mais, ou o SPARSE_TEXT/workerPath
+  // que só faziam sentido com o motor OCR.
+  const semChangelog = index.slice(index.indexOf('-->') + 3);
+  assert.doesNotMatch(semChangelog, /Tesseract/);
+  for (const f of ['tesseract.min.js', 'worker.min.js', 'tesseract-core-lstm.wasm.js',
+                    'tesseract-core-simd-lstm.wasm.js', 'tesseract.js-LICENSE.md',
+                    'tesseract.min.js.LICENSE.txt', 'worker.min.js.LICENSE.txt']) {
+    assert.ok(!existsSync(join(caminhoRaiz, f)), `${f} devia ter sido removido do repositório`);
+  }
 });
 
 test('as licenças das bibliotecas vendorizadas acompanham os ficheiros', () => {
   // Vendorizar código de terceiros obriga a trazer a licença junto.
-  for (const f of ['tesseract.js-LICENSE.md', 'zxing-browser-LICENSE.txt',
-                   'tesseract.min.js.LICENSE.txt', 'worker.min.js.LICENSE.txt']) {
+  for (const f of ['zxing-browser-LICENSE.txt']) {
     assert.ok(existsSync(join(caminhoRaiz, f)), `falta ${f}`);
   }
 });
